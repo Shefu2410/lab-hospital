@@ -45,9 +45,9 @@ async function callAnthropic(tests, patient) {
   const prompt = `You are assisting a hospital lab. Patient: ${patient.name}, ${patient.age} ${patient.ageUnit}, ${patient.gender}.
 This report bundles the following test panel(s):
 
-${testBlocks}
+${testBlocks}`
 
-Write a concise (2-5 sentence) plain-language summary for the reviewing pathologist covering all panels above, highlighting any abnormal values and their likely significance. Do not give a diagnosis, only an observational summary.`;
+
 
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -63,7 +63,6 @@ Write a concise (2-5 sentence) plain-language summary for the reviewing patholog
     }),
   });
 
-  if (!response.ok) throw new Error(`Anthropic API responded with ${response.status}`);
 
   const data = await response.json();
   const text = (data.content || [])
@@ -87,4 +86,4 @@ async function generateSummary(tests, patient) {
   return ruleBasedSummary(tests);
 }
 
-module.exports = { generateSummary, ruleBasedSummary };
+module.exports = { ruleBasedSummary};
