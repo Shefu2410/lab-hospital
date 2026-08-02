@@ -23,7 +23,7 @@ function resultsPage() {
     <div class="topbar">
       <div>
         <h1>Test Results</h1>
-        <div class="crumb">Enter values, review AI flagging, and approve reports</div>
+        <div class="crumb">Enter values and manage report status</div>
       </div>
     </div>
 
@@ -65,160 +65,259 @@ function resultsPage() {
   const pageScript = `
 requireLogin();
 renderSidebar('results');
+
 const currentUser = getUser();
 const canApprove = currentUser && ['admin', 'pathologist'].includes(currentUser.role);
 
 const listBody = document.getElementById('listBody');
 const detailPane = document.getElementById('detailPane');
+const searchBox = document.getElementById('searchBox');
+const statusFilter = document.getElementById('statusFilter');
+
 let activeReport = null;
 
-async function loadList() {
-  const search = document.getElementById('searchBox').value.trim();
-  const status = document.getElementById('statusFilter').value;
-  const qs = new URLSearchParams();
-  if (search) qs.set('search', search);
-  if (status) qs.set('status', status);
-
-  try {
-    const reports = await api('/results?' + qs.toString());
-    if (!reports.length) {
-      listBody.innerHTML = '<tr><td colspan="2"><div class="empty-state">No reports found.</div></td></tr>';
-      return;
-    }
-    listBody.innerHTML = reports.map((r) =>
-      '<tr class="clickable" onclick="openReport(\\'' + r._id + '\\')">' +
-      '<td><div class="id-cell">' + r.reportId + '</div>' +
-      '<div style="font-weight:600;">' + (r.patient ? r.patient.name : '—') + '</div>' +
-      '<div style="font-size:11.5px;color:var(--ink-soft);">' + r.testNames + '</div></td>' +
-      '<td><span class="badge ' + statusBadgeClass(r.status) + '">' + r.status + '</span></td>' +
-      '</tr>'
-    ).join('');
-  } catch (err) {
-    listBody.innerHTML = '<tr><td colspan="2"><div class="empty-state">' + err.message + '</div></td></tr>';
-  }
-}
+// ---------- small helpers ----------
 
 function flagClass(flag) {
   return { High: 'flag-High', Low: 'flag-Low', Normal: 'flag-Normal' }[flag] || 'flag-NA';
 }
 
-async function openReport(id) {
-  detailPane.innerHTML = '<div class="card"><div class="empty-state">Loading report…</div></div>';
+function normalRangeText(value) {
+  if (value.normalText) return value.normalText;
+  return \`\${value.normalMin ?? ''} – \${value.normalMax ?? ''} \${value.unit}\`;
+}
+
+// ---------- report list (left column) ----------
+
+function reportListRowHtml(report) {
+  return \`
+    <tr class="clickable" onclick="openReport('\${report._id}')">
+      <td>
+        <div class="id-cell">\${report.reportId}</div>
+        <div style="font-weight:600;">\${report.patient ? report.patient.name : '—'}</div>
+        <div style="font-size:11.5px;color:var(--ink-soft);">\${report.testNames}</div>
+      </td>
+      <td><span class="badge \${statusBadgeClass(report.status)}">\${report.status}</span></td>
+    </tr>
+  \`;
+}
+
+async function loadList() {
+  const search = searchBox.value.trim();
+  const status = statusFilter.value;
+  const qs = new URLSearchParams();
+  if (search) qs.set('search', search);
+  if (status) qs.set('status', status);
+
   try {
-    activeReport = await api('/results/' + id);
-    renderDetail();
+    const reports = await api(\`/results?\${qs.toString()}\`);
+
+    if (!reports.length) {
+      listBody.innerHTML = \`<tr><td colspan="2"><div class="empty-state">No reports found.</div></td></tr>\`;
+      return;
+    }
+
+    listBody.innerHTML = reports.map(reportListRowHtml).join('');
   } catch (err) {
-    detailPane.innerHTML = '<div class="card"><div class="empty-state">' + err.message + '</div></div>';
+    listBody.innerHTML = \`<tr><td colspan="2"><div class="empty-state">\${err.message}</div></td></tr>\`;
   }
 }
 
-function renderDetail() {
-  const r = activeReport;
+// ---------- report detail (right column) ----------
 
-  const testBlocks = r.tests.map((t, ti) =>
-    '<div class="test-block" data-test="' + ti + '" data-catalog="' + t.testCatalog + '">' +
-    '<div class="test-block-head">' + t.testName + '</div>' +
-    '<div class="param-head"><div></div><div>Parameter</div><div>Normal Range</div><div style="text-align:right;">Value</div><div>Flag</div></div>' +
-    t.values.map((v, vi) =>
-      '<div class="param-row">' +
-      '<div class="param-rail ' + flagClass(v.flag) + '"></div>' +
-      '<div class="param-name">' + v.name + '</div>' +
-      '<div class="param-range">' + (v.normalText ? v.normalText : (v.normalMin ?? '') + ' – ' + (v.normalMax ?? '') + ' ' + v.unit) + '</div>' +
-      '<div><input data-test="' + ti + '" data-idx="' + vi + '" class="value-input" value="' + (v.value || '') + '" placeholder="value" /></div>' +
-      '<div><span class="flag-chip ' + flagClass(v.flag) + '">' + v.flag + '</span></div>' +
-      '</div>'
-    ).join('') +
-    '</div>'
-  ).join('');
-
-  const statusFlow = ['Pending', 'Tested', 'Partial Approved', 'Approved'];
-  const nextStatus = statusFlow[Math.min(statusFlow.indexOf(r.status) + 1, statusFlow.length - 1)];
-
-  detailPane.innerHTML =
-    '<div class="card">' +
-    '<div class="card-head"><div>' +
-    '<h3>' + r.reportId + ' <span class="badge ' + statusBadgeClass(r.status) + '" style="margin-left:8px;">' + r.status + '</span></h3>' +
-    '<div class="hint">' + r.testNames + ' &middot; ' + r.patient.name + ' &middot; ' + r.patient.patientId + ' &middot; ' + r.patient.age + ' ' + r.patient.ageUnit + ' &middot; ' + r.patient.gender + '</div>' +
-    '</div><button class="btn btn-ghost btn-sm" onclick="window.print2()">Print Report</button></div>' +
-    '<div id="testBlocks">' + testBlocks + '</div>' +
-    '<div class="section-title">AI Insight</div>' +
-    '<div class="ai-panel"><span class="ai-tag"><span class="pulse"></span> AI ANALYSIS</span>' +
-    '<p id="aiSummaryText">' + (r.aiSummary || 'Save values to generate an AI-assisted summary of this report.') + '</p></div>' +
-    '<div class="detail-actions">' +
-    '<button class="btn btn-primary" id="saveValuesBtn">Save Values &amp; Run AI Check</button>' +
-    (canApprove ? '<button class="btn btn-outline" id="advanceBtn">Mark as "' + nextStatus + '"</button>' : '') +
-    (canApprove && r.status !== 'Approved' ? '<button class="btn btn-danger" id="approveBtn">Approve &amp; Print</button>' : '') +
-    '</div></div>';
-
-  document.getElementById('saveValuesBtn').addEventListener('click', saveValues);
-  const advanceBtn = document.getElementById('advanceBtn');
-  if (advanceBtn) advanceBtn.addEventListener('click', () => setStatus(nextStatus));
-  const approveBtn = document.getElementById('approveBtn');
-  if (approveBtn) approveBtn.addEventListener('click', async () => { await setStatus('Approved'); window.print2(); });
+async function openReport(id) {
+  detailPane.innerHTML = \`<div class="card"><div class="empty-state">Loading report…</div></div>\`;
+  try {
+    activeReport = await api(\`/results/\${id}\`);
+    renderDetail();
+  } catch (err) {
+    detailPane.innerHTML = \`<div class="card"><div class="empty-state">\${err.message}</div></div>\`;
+  }
 }
 
+function paramRowHtml(value, testIndex, valueIndex) {
+  return \`
+    <div class="param-row">
+      <div class="param-rail \${flagClass(value.flag)}"></div>
+      <div class="param-name">\${value.name}</div>
+      <div class="param-range">\${normalRangeText(value)}</div>
+      <div>
+        <input
+          data-test="\${testIndex}"
+          data-idx="\${valueIndex}"
+          class="value-input"
+          value="\${value.value || ''}"
+          placeholder="value"
+        />
+      </div>
+      <div><span class="flag-chip \${flagClass(value.flag)}">\${value.flag}</span></div>
+    </div>
+  \`;
+}
+
+function testBlockHtml(test, testIndex) {
+  const paramRows = test.values.map((value, valueIndex) => paramRowHtml(value, testIndex, valueIndex)).join('');
+
+  return \`
+    <div class="test-block" data-test="\${testIndex}" data-catalog="\${test.testCatalog}">
+      <div class="test-block-head">\${test.testName}</div>
+      <div class="param-head">
+        <div></div>
+        <div>Parameter</div>
+        <div>Normal Range</div>
+        <div style="text-align:right;">Value</div>
+        <div>Flag</div>
+      </div>
+      \${paramRows}
+    </div>
+  \`;
+}
+
+function renderDetail() {
+  const report = activeReport;
+  const testBlocks = report.tests.map((test, testIndex) => testBlockHtml(test, testIndex)).join('');
+
+  const statusFlow = ['Pending', 'Tested', 'Partial Approved', 'Approved'];
+  const nextStatus = statusFlow[Math.min(statusFlow.indexOf(report.status) + 1, statusFlow.length - 1)];
+
+  detailPane.innerHTML = \`
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <h3>
+            \${report.reportId}
+            <span class="badge \${statusBadgeClass(report.status)}" style="margin-left:8px;">\${report.status}</span>
+          </h3>
+          <div class="hint">
+            \${report.testNames} &middot;
+            \${report.patient.name} &middot;
+            \${report.patient.patientId} &middot;
+            \${report.patient.age} \${report.patient.ageUnit} &middot;
+            \${report.patient.gender}
+          </div>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="window.print2()">Print Report</button>
+      </div>
+
+      <div id="testBlocks">\${testBlocks}</div>
+
+      <div class="detail-actions">
+        <button class="btn btn-primary" id="saveValuesBtn">Save Values</button>
+        \${canApprove ? \`<button class="btn btn-outline" id="advanceBtn">Mark as "\${nextStatus}"</button>\` : ''}
+        \${canApprove && report.status !== 'Approved' ? \`<button class="btn btn-danger" id="approveBtn">Approve &amp; Print</button>\` : ''}
+      </div>
+    </div>
+  \`;
+
+  document.getElementById('saveValuesBtn').addEventListener('click', saveValues);
+
+  const advanceBtn = document.getElementById('advanceBtn');
+  if (advanceBtn) advanceBtn.addEventListener('click', () => setStatus(nextStatus));
+
+  const approveBtn = document.getElementById('approveBtn');
+  if (approveBtn) {
+    approveBtn.addEventListener('click', async () => {
+      await setStatus('Approved');
+      window.print2();
+    });
+  }
+}
+
+// ---------- actions ----------
+
 async function saveValues() {
-  const tests = activeReport.tests.map((t, ti) => {
-    const inputs = document.querySelectorAll('.value-input[data-test="' + ti + '"]');
-    const values = t.values.map((v, vi) => Object.assign({}, v, { value: inputs[vi].value }));
-    return { testCatalog: t.testCatalog, values };
+  const tests = activeReport.tests.map((test, testIndex) => {
+    const inputs = document.querySelectorAll(\`.value-input[data-test="\${testIndex}"]\`);
+    const values = test.values.map((value, valueIndex) => ({ ...value, value: inputs[valueIndex].value }));
+    return { testCatalog: test.testCatalog, values };
   });
 
   const btn = document.getElementById('saveValuesBtn');
   btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span> Saving &amp; analyzing...';
-  document.getElementById('aiSummaryText').innerHTML = '<span class="ai-loading">Generating AI insight…</span>';
+  btn.innerHTML = \`<span class="spinner"></span> Saving...\`;
 
   try {
-    activeReport = await api('/results/' + activeReport._id + '/values', { method: 'PUT', body: JSON.stringify({ tests }) });
+    activeReport = await api(\`/results/\${activeReport._id}/values\`, {
+      method: 'PUT',
+      body: JSON.stringify({ tests }),
+    });
     renderDetail();
     loadList();
-    showToast('Values saved and AI insight updated.', 'success');
+    showToast('Values saved.', 'success');
   } catch (err) {
     showToast(err.message, 'error');
     btn.disabled = false;
-    btn.textContent = 'Save Values & Run AI Check';
+    btn.textContent = 'Save Values';
   }
 }
 
 async function setStatus(status) {
   try {
-    activeReport = await api('/results/' + activeReport._id + '/status', { method: 'PUT', body: JSON.stringify({ status }) });
+    activeReport = await api(\`/results/\${activeReport._id}/status\`, {
+      method: 'PUT',
+      body: JSON.stringify({ status }),
+    });
     renderDetail();
     loadList();
-    showToast('Report marked ' + status + '.', 'success');
+    showToast(\`Report marked \${status}.\`, 'success');
   } catch (err) {
     showToast(err.message, 'error');
   }
 }
 
-window.print2 = function () {
-  const r = activeReport;
-  const testTables = r.tests.map((t) =>
-    '<h4 style="margin:16px 0 6px;">' + t.testName + '</h4>' +
-    '<table style="width:100%; border-collapse:collapse;" border="1" cellpadding="6">' +
-    '<thead><tr><th>Parameter</th><th>Value</th><th>Normal Range</th><th>Flag</th></tr></thead><tbody>' +
-    t.values.map((v) =>
-      '<tr><td>' + v.name + '</td><td>' + v.value + ' ' + v.unit + '</td>' +
-      '<td>' + (v.normalText || (v.normalMin ?? '') + ' - ' + (v.normalMax ?? '') + ' ' + v.unit) + '</td>' +
-      '<td>' + v.flag + '</td></tr>'
-    ).join('') +
-    '</tbody></table>'
-  ).join('');
+// ---------- printing ----------
 
-  document.getElementById('printArea').innerHTML =
-    '<div style="font-family: Arial, sans-serif; padding: 30px;">' +
-    '<div style="display:flex; justify-content:space-between; border-bottom:2px solid #0c7c7c; padding-bottom:12px; margin-bottom:16px;">' +
-    '<div><h2 style="margin:0;">RKH Cross LIMS</h2><div>Hospital &amp; AI Lab Suite</div></div>' +
-    '<div style="text-align:right;"><div><b>Report:</b> ' + r.reportId + '</div><div><b>Status:</b> ' + r.status + '</div></div></div>' +
-    '<p><b>Patient:</b> ' + r.patient.name + ' (' + r.patient.patientId + ') &nbsp; <b>Age/Sex:</b> ' + r.patient.age + ' ' + r.patient.ageUnit + ' / ' + r.patient.gender + '</p>' +
-    testTables +
-    '<p style="margin-top:16px;"><b>AI Insight:</b> ' + (r.aiSummary || '-') + '</p></div>';
+function printTestTableHtml(test) {
+  const rows = test.values.map((value) => \`
+    <tr>
+      <td>\${value.name}</td>
+      <td>\${value.value} \${value.unit}</td>
+      <td>\${normalRangeText(value)}</td>
+      <td>\${value.flag}</td>
+    </tr>
+  \`).join('');
+
+  return \`
+    <h4 style="margin:16px 0 6px;">\${test.testName}</h4>
+    <table style="width:100%; border-collapse:collapse;" border="1" cellpadding="6">
+      <thead>
+        <tr><th>Parameter</th><th>Value</th><th>Normal Range</th><th>Flag</th></tr>
+      </thead>
+      <tbody>\${rows}</tbody>
+    </table>
+  \`;
+}
+
+window.print2 = function () {
+  const report = activeReport;
+  const testTables = report.tests.map(printTestTableHtml).join('');
+
+  document.getElementById('printArea').innerHTML = \`
+    <div style="font-family: Arial, sans-serif; padding: 30px;">
+      <div style="display:flex; justify-content:space-between; border-bottom:2px solid #0c7c7c; padding-bottom:12px; margin-bottom:16px;">
+        <div>
+          <h2 style="margin:0;">RKH Cross LIMS</h2>
+          <div>Hospital &amp; AI Lab Suite</div>
+        </div>
+        <div style="text-align:right;">
+          <div><b>Report:</b> \${report.reportId}</div>
+          <div><b>Status:</b> \${report.status}</div>
+        </div>
+      </div>
+      <p>
+        <b>Patient:</b> \${report.patient.name} (\${report.patient.patientId}) &nbsp;
+        <b>Age/Sex:</b> \${report.patient.age} \${report.patient.ageUnit} / \${report.patient.gender}
+      </p>
+      \${testTables}
+    </div>
+  \`;
   window.print();
 };
 
-document.getElementById('searchBox').addEventListener('input', () => loadList());
-document.getElementById('statusFilter').addEventListener('change', () => loadList());
+// ---------- wire up + initial load ----------
+
+searchBox.addEventListener('input', loadList);
+statusFilter.addEventListener('change', loadList);
 
 loadList().then(() => {
   const params = new URLSearchParams(window.location.search);
