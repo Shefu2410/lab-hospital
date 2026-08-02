@@ -9,10 +9,30 @@ function resultsPage() {
 .test-block{border:1px solid var(--border);border-radius:8px;margin-bottom:14px;overflow:hidden;}
 .test-block-head{background:#f4f6f7;padding:10px 14px;font-weight:700;font-size:13px;}
 .param-head{display:grid;grid-template-columns:4px 1.6fr 1fr 1fr 1fr;gap:14px;padding:8px 14px 8px 10px;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft);}
-#printArea{display:none;}
+#printArea{
+  display:none;
+}
+
 @media print{
-  .app-shell > *:not(#printArea){display:none !important;}
-  #printArea{display:block !important;}
+
+  .sidebar,
+  .topbar,
+  .content{
+      display:none !important;
+  }
+
+  #printArea{
+      display:block !important;
+      position:absolute;
+      top:0;
+      left:0;
+      width:100%;
+      background:#fff;
+  }
+}
+
+@page{
+    margin:10mm;
 }`;
 
   const body = `
@@ -52,6 +72,8 @@ function resultsPage() {
             <div class="empty-state">
               <h4>No report selected</h4>
               Choose a report from the list to enter or review results.
+              <div id="printArea">
+              </div>
             </div>
           </div>
         </div>
@@ -59,7 +81,7 @@ function resultsPage() {
     </div>
   </div>
 </div>
-<div id="printArea"></div>`;
+
 
   const pageScript = `
 requireLogin();
