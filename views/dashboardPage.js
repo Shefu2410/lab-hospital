@@ -54,22 +54,6 @@ function dashboardPage() {
 
       <div class="card">
         <div class="card-head">
-          <h3>All Patients</h3>
-          <span class="hint" id="allPatientsCount">Every patient registered in this lab &middot; report or not</span>
-        </div>
-        <div class="toolbar">
-          <input class="search-input" id="allPatientsSearchBox" placeholder="Filter by name, patient ID or phone..." />
-        </div>
-        <table>
-          <thead><tr><th>Patient</th><th>Phone</th><th>Registered</th></tr></thead>
-          <tbody id="allPatientsBody">
-            <tr><td colspan="3" class="empty-state">Loading…</td></tr>
-          </tbody>
-        </table>
-      </div>
-
-      <div class="card">
-        <div class="card-head">
           <h3>Recent Reports</h3>
           <span class="hint">Latest 8 across all statuses</span>
         </div>
@@ -191,40 +175,6 @@ async function loadRecent() {
     recentBody.innerHTML = \`<tr><td colspan="5"><div class="empty-state">Failed to load: \${err.message}</div></td></tr>\`;
   }
 }
-
-// ---------- all patients (always visible, independent of reports) ----------
-
-const allPatientsBody = document.getElementById('allPatientsBody');
-const allPatientsSearchBox = document.getElementById('allPatientsSearchBox');
-const allPatientsCount = document.getElementById('allPatientsCount');
-let allPatientsSearchTimer = null;
-
-async function loadAllPatients() {
-  const term = allPatientsSearchBox.value.trim();
-  const qs = term ? \`?search=\${encodeURIComponent(term)}\` : '';
-
-  try {
-    const patients = await api(\`/patients\${qs}\`);
-
-    allPatientsCount.textContent = term
-      ? \`\${patients.length} match\${patients.length === 1 ? '' : 'es'} for "\${term}"\`
-      : \`\${patients.length} patient\${patients.length === 1 ? '' : 's'} registered in this lab &middot; report or not\`;
-
-    if (!patients.length) {
-      allPatientsBody.innerHTML = \`<tr><td colspan="3"><div class="empty-state">No patients found.</div></td></tr>\`;
-      return;
-    }
-
-    allPatientsBody.innerHTML = patients.map(patientRowHtml).join('');
-  } catch (err) {
-    allPatientsBody.innerHTML = \`<tr><td colspan="3"><div class="empty-state">\${err.message}</div></td></tr>\`;
-  }
-}
-
-allPatientsSearchBox.addEventListener('input', () => {
-  clearTimeout(allPatientsSearchTimer);
-  allPatientsSearchTimer = setTimeout(loadAllPatients, 250);
-});
 
 // ---------- expandable report rows (search / filter results) ----------
 
@@ -429,8 +379,7 @@ document.querySelectorAll('#statGrid .stat-card').forEach((card) => {
 });
 
 loadStats();
-loadRecent();
-loadAllPatients();`;
+loadRecent();`;
 
   return renderPage({ title: 'Dashboard', body, pageScript, extraStyle });
 }
