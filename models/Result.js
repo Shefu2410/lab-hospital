@@ -37,7 +37,6 @@ const resultSchema = new mongoose.Schema(
       enum: ['Pending', 'Tested', 'Partial Approved', 'Approved'],
       default: 'Pending',
     },
-    aiSummary: { type: String, default: '' },
   },
   { timestamps: true }
 );

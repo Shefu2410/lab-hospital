@@ -5,7 +5,6 @@ const TestCatalog = require('../models/TestCatalog');
 const { protect, requireRole } = require('../middleware/auth');
 const { generateReportId } = require('../utils/idGenerator');
 const { applyFlags } = require('../utils/flagLogic');
-const { generateSummary } = require('../utils/aiAnalysis');
 
 const router = express.Router();
 router.use(protect);
@@ -13,12 +12,14 @@ router.use(protect);
 const STATUS_FLOW = ['Pending', 'Tested', 'Partial Approved', 'Approved'];
 const APPROVAL_ROLES = ['admin', 'pathologist'];
 
-// GET /api/results?search=&status= - list, newest first, scoped to the current lab
+// GET /api/results?search=&status=&abnormal= - list, newest first, scoped to the current lab
+// status may be a single value ("Pending") or comma-separated ("Tested,Partial Approved")
+// abnormal=true restricts to reports with at least one High/Low flagged value
 router.get('/', async (req, res, next) => {
   try {
-    const { search, status } = req.query;
+    const { search, status, abnormal } = req.query;
     const filter = { lab: req.user.lab };
-    if (status) filter.status = status;
+    if (status) filter.status = { $in: status.split(',').map((s) => s.trim()) };
 
     let reports = await Result.find(filter).populate('patient', 'name patientId').sort({ updatedAt: -1 });
 
@@ -30,6 +31,10 @@ router.get('/', async (req, res, next) => {
           r.testNames.toLowerCase().includes(term) ||
           (r.patient && r.patient.name.toLowerCase().includes(term))
       );
+    }
+
+    if (abnormal === 'true') {
+      reports = reports.filter((r) => r.hasAbnormal);
     }
 
     res.json(reports);
@@ -101,7 +106,7 @@ router.post('/', async (req, res, next) => {
   }
 });
 
-// PUT /api/results/:id/values - save entered values, recompute flags + AI summary
+// PUT /api/results/:id/values - save entered values and recompute flags
 // body: { tests: [ { testCatalog: id, values: [...] }, ... ] }
 router.put('/:id/values', async (req, res, next) => {
   try {
@@ -125,7 +130,6 @@ router.put('/:id/values', async (req, res, next) => {
       report.status = 'Tested';
     }
 
-    report.aiSummary = await generateSummary(report.tests, report.patient);
     await report.save();
 
     res.json(report);
