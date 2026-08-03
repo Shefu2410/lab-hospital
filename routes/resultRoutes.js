@@ -3,7 +3,6 @@ const Result = require('../models/Result');
 const Patient = require('../models/Patient');
 const TestCatalog = require('../models/TestCatalog');
 const { protect, requireRole } = require('../middleware/auth');
-const { generateReportId } = require('../utils/idGenerator');
 const { applyFlags } = require('../utils/flagLogic');
 
 const router = express.Router();
@@ -55,16 +54,23 @@ router.get('/:id', async (req, res, next) => {
 });
 
 // POST /api/results - create ONE report for a patient covering one or more test panels.
-// body: { patientId, testCatalogIds: [id, id, ...] }
+// body: { reportId, patientId, testCatalogIds: [id, id, ...] }
+// reportId is typed in by staff, not auto-generated - it just has to be unique within the lab.
 // If the same patient orders 3 panels in one visit, they all land in this
-// single report under one reportId - they never get 3 separate IDs.
+// single report under that one reportId - they never get 3 separate IDs.
 router.post('/', async (req, res, next) => {
   try {
-    const { patientId, testCatalogIds } = req.body;
+    const { reportId, patientId, testCatalogIds } = req.body;
     const ids = Array.isArray(testCatalogIds) ? testCatalogIds : testCatalogIds ? [testCatalogIds] : [];
 
-    if (!patientId || !ids.length) {
-      return res.status(400).json({ message: 'patientId and at least one testCatalogId are required.' });
+    const cleanReportId = (reportId || '').trim();
+    if (!cleanReportId || !patientId || !ids.length) {
+      return res.status(400).json({ message: 'reportId, patientId and at least one testCatalogId are required.' });
+    }
+
+    const existingReport = await Result.findOne({ lab: req.user.lab, reportId: cleanReportId });
+    if (existingReport) {
+      return res.status(409).json({ message: `Report ID "${cleanReportId}" is already in use. Choose a different one.` });
     }
 
     const patient = await Patient.findOne({ _id: patientId, lab: req.user.lab });
@@ -89,11 +95,9 @@ router.post('/', async (req, res, next) => {
       })),
     }));
 
-    const reportId = await generateReportId(req.user.lab);
-
     const report = await Result.create({
       lab: req.user.lab,
-      reportId,
+      reportId: cleanReportId,
       patient: patient._id,
       tests,
       status: 'Pending',

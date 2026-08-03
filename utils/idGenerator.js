@@ -1,5 +1,4 @@
 const Patient = require('../models/Patient');
-const Result = require('../models/Result');
 const Lab = require('../models/Lab');
 
 // Generates a short unique lab code from its name, e.g. "Rajkot Hospital" -> "RAJHO23"
@@ -29,15 +28,4 @@ async function generatePatientId(labId) {
   return `PT-${Date.now()}`;
 }
 
-// Generates RPT-000001, RPT-000002, ... scoped to a single lab
-async function generateReportId(labId) {
-  for (let attempt = 0; attempt < 5; attempt++) {
-    const count = await Result.countDocuments({ lab: labId });
-    const candidate = `RPT-${String(count + 1 + attempt).padStart(6, '0')}`;
-    const exists = await Result.findOne({ lab: labId, reportId: candidate });
-    if (!exists) return candidate;
-  }
-  return `RPT-${Date.now()}`;
-}
-
-module.exports = { generateLabCode, generatePatientId, generateReportId };
+module.exports = { generateLabCode, generatePatientId };
