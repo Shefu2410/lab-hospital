@@ -57,7 +57,7 @@ function renderSidebar(activeKey) {
     (item) => '<a href="' + item.href + '" class="' + (item.key === activeKey ? 'active' : '') + '">' + item.label + '</a>'
   ).join('');
   el.innerHTML =
-    '<div class="brand">RKH Cross LIMS' +
+    '<div class="brand">RKH LIMS' +
     (user ? '<div style="font-weight:400;font-size:11px;color:#9fb0b0;margin-top:4px;">' + user.name + ' &middot; ' + user.role + '</div>' : '') +
     '</div>' +
     links +

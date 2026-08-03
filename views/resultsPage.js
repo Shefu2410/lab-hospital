@@ -296,7 +296,7 @@ window.print2 = function () {
     <div style="font-family: Arial, sans-serif; padding: 30px;">
       <div style="display:flex; justify-content:space-between; border-bottom:2px solid #0c7c7c; padding-bottom:12px; margin-bottom:16px;">
         <div>
-          <h2 style="margin:0;">RKH Cross LIMS</h2>
+          <h2 style="margin:0;">RKH LIMS</h2>
           <div>Hospital &amp; AI Lab Suite</div>
         </div>
         <div style="text-align:right;">

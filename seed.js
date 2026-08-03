@@ -13,7 +13,7 @@ const TestCatalog = require('./models/TestCatalog');
 const { generateLabCode } = require('./utils/idGenerator');
 
 const DEMO_LAB = {
-  name: 'RKH Cross Diagnostics (Demo)',
+  name: 'RKH Diagnostics (Demo)',
   email: 'demo-lab@rkhcross.test',
   phone: '9999999999',
   address: 'Rajkot, Gujarat, India',

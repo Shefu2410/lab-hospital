@@ -5,9 +5,9 @@ function loginPage() {
 <div class="auth-screen">
   <div class="auth-visual">
     <div class="auth-brand">
-      <div class="mark">GC</div>
+      <div class="mark">RKH</div>
       <div>
-        <div class="name">RKH Cross LIMS</div>
+        <div class="name">RKH LIMS</div>
         <div class="sub">HOSPITAL &amp; AI LAB SUITE</div>
       </div>
     </div>
@@ -40,12 +40,7 @@ function loginPage() {
         <input type="password" id="password" autocomplete="current-password" placeholder="••••••••" required />
       </div>
       <button type="submit" class="btn btn-primary btn-block" id="loginBtn">Login</button>
-      <div class="demo-creds">
-        Seeded demo logins (run <b>npm run seed</b> first — it prints your lab code):<br />
-        Admin — <b>admin / admin123</b><br />
-        Pathologist — <b>pathologist / path123</b><br />
-        Technician — <b>technician / tech123</b>
-      </div>
+      
     </form>
   </div>
 </div>`;
