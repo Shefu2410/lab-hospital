@@ -11,6 +11,7 @@ function dashboardPage() {
 .stat-card:hover{border-color:var(--teal);box-shadow:0 2px 10px rgba(12,124,124,.12);}
 .filter-bar{display:none;align-items:center;gap:10px;background:#f4fbfa;border:1px dashed var(--teal);border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:12.5px;}
 .filter-bar.show{display:flex;}
+.trash-btn{padding:6px 10px;font-size:14px;line-height:1;}
 `;
 
   const body = `
@@ -59,10 +60,10 @@ function dashboardPage() {
         </div>
         <table>
           <thead>
-            <tr><th>Report ID</th><th>Patient</th><th>Tests</th><th>Status</th><th>Updated</th></tr>
+            <tr><th>Report ID</th><th>Patient</th><th>Tests</th><th>Status</th><th>Updated</th><th></th></tr>
           </thead>
           <tbody id="recentBody">
-            <tr><td colspan="5" class="empty-state">Loading…</td></tr>
+            <tr><td colspan="6" class="empty-state">Loading…</td></tr>
           </tbody>
         </table>
       </div>
@@ -114,6 +115,17 @@ function resetSearchPanel() {
   searchBody.innerHTML = DEFAULT_BODY;
 }
 
+function trashButtonHtml(id, reportId) {
+  if (!canDelete) return '';
+  return \`
+    <button
+      class="btn btn-danger btn-sm trash-btn"
+      title="Delete report \${reportId}"
+      onclick="event.stopPropagation(); deleteReport('\${id}', '\${reportId}')"
+    >🗑️</button>
+  \`;
+}
+
 // ---------- stat cards ----------
 
 function statCardHtml({ label, value, foot }) {
@@ -156,6 +168,7 @@ function recentRowHtml(report) {
       <td>\${report.testNames}</td>
       <td><span class="badge \${statusBadgeClass(report.status)}">\${report.status}</span></td>
       <td>\${fmtDateTime(report.updatedAt)}</td>
+      <td>\${trashButtonHtml(report._id, report.reportId)}</td>
     </tr>
   \`;
 }
@@ -166,13 +179,13 @@ async function loadRecent() {
     const reports = await api('/dashboard/recent');
 
     if (!reports.length) {
-      recentBody.innerHTML = \`<tr><td colspan="5"><div class="empty-state"><h4>No reports yet</h4>Register a sample to get started.</div></td></tr>\`;
+      recentBody.innerHTML = \`<tr><td colspan="6"><div class="empty-state"><h4>No reports yet</h4>Register a sample to get started.</div></td></tr>\`;
       return;
     }
 
     recentBody.innerHTML = reports.map(recentRowHtml).join('');
   } catch (err) {
-    recentBody.innerHTML = \`<tr><td colspan="5"><div class="empty-state">Failed to load: \${err.message}</div></td></tr>\`;
+    recentBody.innerHTML = \`<tr><td colspan="6"><div class="empty-state">Failed to load: \${err.message}</div></td></tr>\`;
   }
 }
 
@@ -253,10 +266,6 @@ window.deleteReport = deleteReport;
 // ---------- rendering the search / filter results table ----------
 
 function reportRowHtml(report) {
-  const deleteButton = canDelete
-    ? \`<button class="btn btn-danger btn-sm" onclick="event.stopPropagation(); deleteReport('\${report._id}', '\${report.reportId}')">Delete</button>\`
-    : '';
-
   return \`
     <tr class="clickable" data-id="\${report._id}" onclick="toggleExpand('\${report._id}', this)">
       <td>
@@ -265,7 +274,7 @@ function reportRowHtml(report) {
         <div style="font-size:11.5px;color:var(--ink-soft);">\${report.testNames}</div>
       </td>
       <td><span class="badge \${statusBadgeClass(report.status)}">\${report.status}</span></td>
-      <td>\${deleteButton}</td>
+      <td>\${trashButtonHtml(report._id, report.reportId)}</td>
     </tr>
   \`;
 }
