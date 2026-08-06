@@ -1,15 +1,16 @@
 const express = require('express');
 const Patient = require('../models/Patient');
-const { protect } = require('../middleware/auth');
+const Result = require('../models/Result');
+const { protect, requireRole } = require('../middleware/auth');
 const { generatePatientId } = require('../utils/idGenerator');
 
 const router = express.Router();
 router.use(protect);
 
-// GET /api/patients - list, scoped to the logged-in user's lab, optional ?search=
+// GET /api/patients - list, scoped to the logged-in user's lab, optional ?search= and/or ?today=true
 router.get('/', async (req, res, next) => {
   try {
-    const { search } = req.query;
+    const { search, today } = req.query;
     const filter = { lab: req.user.lab };
     if (search) {
       filter.$or = [
@@ -17,6 +18,11 @@ router.get('/', async (req, res, next) => {
         { patientId: { $regex: search, $options: 'i' } },
         { phone: { $regex: search, $options: 'i' } },
       ];
+    }
+    if (today === 'true') {
+      const startOfDay = new Date();
+      startOfDay.setHours(0, 0, 0, 0);
+      filter.createdAt = { $gte: startOfDay };
     }
     const patients = await Patient.find(filter).sort({ createdAt: -1 });
     res.json(patients);
@@ -71,6 +77,28 @@ router.post('/', async (req, res, next) => {
     });
 
     res.status(201).json(patient);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// DELETE /api/patients/:id - admin only, permanently removes a patient AND
+// every report belonging to them (a report can't be kept if its patient is
+// gone - it would just point at nothing).
+router.delete('/:id', requireRole('admin'), async (req, res, next) => {
+  try {
+    const patient = await Patient.findOneAndDelete({ _id: req.params.id, lab: req.user.lab });
+    if (!patient) return res.status(404).json({ message: 'Patient not found.' });
+
+    const { deletedCount } = await Result.deleteMany({ lab: req.user.lab, patient: patient._id });
+
+    res.json({
+      message:
+        deletedCount > 0
+          ? `Patient ${patient.patientId} (${patient.name}) and their ${deletedCount} report${deletedCount === 1 ? '' : 's'} were deleted.`
+          : `Patient ${patient.patientId} (${patient.name}) was deleted.`,
+      reportsDeleted: deletedCount,
+    });
   } catch (err) {
     next(err);
   }
