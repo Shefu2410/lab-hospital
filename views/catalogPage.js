@@ -16,16 +16,16 @@ function catalogPage() {
       <div class="grid-2">
         <div>
           <div class="card">
-            <div class="card-head"><h3>Existing Panels</h3></div>
+            <div class="card-head"><h3>Existing Panels</h3><span class="hint">Click Edit to change a panel, including its price</span></div>
             <table>
-              <thead><tr><th>Code</th><th>Name</th><th>Department</th><th>Params</th><th>Price</th></tr></thead>
-              <tbody id="catalogBody"><tr><td colspan="5" class="empty-state">Loading…</td></tr></tbody>
+              <thead><tr><th>Code</th><th>Name</th><th>Department</th><th>Params</th><th>Price</th><th></th></tr></thead>
+              <tbody id="catalogBody"><tr><td colspan="6" class="empty-state">Loading…</td></tr></tbody>
             </table>
           </div>
         </div>
 
         <div class="card">
-          <div class="card-head"><h3>Add New Panel</h3><span class="hint">Saved directly to MongoDB</span></div>
+          <div class="card-head"><h3 id="formTitle">Add New Panel</h3><span class="hint" id="formHint">Saved directly to MongoDB</span></div>
           <div class="field-row">
             <div class="field"><label>Code *</label><input id="t_code" placeholder="e.g. TFT" required /></div>
             <div class="field"><label>Department</label><input id="t_department" placeholder="Biochemistry" /></div>
@@ -37,6 +37,7 @@ function catalogPage() {
           <div id="paramList"></div>
           <button class="btn btn-ghost btn-sm" id="addParamRow" type="button">+ Add Parameter</button>
           <button class="btn btn-primary btn-block" style="margin-top:18px;" id="saveTestBtn">Save Panel</button>
+          <button class="btn btn-ghost btn-block" style="margin-top:8px;display:none;" id="cancelEditBtn" type="button">Cancel edit</button>
         </div>
       </div>
     </div>
@@ -47,21 +48,73 @@ function catalogPage() {
 requireLogin();
 renderSidebar('catalog');
 
+let editingId = null; // set while editing an existing panel, null while adding a new one
+
+function enterEditMode(test) {
+  editingId = test._id;
+  document.getElementById('formTitle').textContent = 'Edit Panel: ' + test.code;
+  document.getElementById('formHint').textContent = 'Editing an existing panel - Save will update it.';
+  document.getElementById('saveTestBtn').textContent = 'Update Panel';
+  document.getElementById('cancelEditBtn').style.display = 'block';
+
+  document.getElementById('t_code').value = test.code;
+  document.getElementById('t_name').value = test.name;
+  document.getElementById('t_department').value = test.department;
+  document.getElementById('t_price').value = test.price;
+
+  document.getElementById('paramList').innerHTML = '';
+  if (test.parameters.length) {
+    test.parameters.forEach((p) => addParamRow(p));
+  } else {
+    addParamRow();
+  }
+
+  document.getElementById('formTitle').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function exitEditMode() {
+  editingId = null;
+  document.getElementById('formTitle').textContent = 'Add New Panel';
+  document.getElementById('formHint').textContent = 'Saved directly to MongoDB';
+  document.getElementById('saveTestBtn').textContent = 'Save Panel';
+  document.getElementById('cancelEditBtn').style.display = 'none';
+
+  document.getElementById('t_code').value = '';
+  document.getElementById('t_name').value = '';
+  document.getElementById('t_department').value = '';
+  document.getElementById('t_price').value = 0;
+  document.getElementById('paramList').innerHTML = '';
+  addParamRow();
+}
+
+document.getElementById('cancelEditBtn').addEventListener('click', exitEditMode);
+
+let catalogCache = [];
+
 async function loadCatalog() {
   const body = document.getElementById('catalogBody');
   try {
     const tests = await api('/tests');
+    catalogCache = tests;
     if (!tests.length) {
-      body.innerHTML = '<tr><td colspan="5"><div class="empty-state">No panels yet. Run <code>npm run seed</code> or add one.</div></td></tr>';
+      body.innerHTML = '<tr><td colspan="6"><div class="empty-state">No panels yet. Run <code>npm run seed</code> or add one.</div></td></tr>';
       return;
     }
     body.innerHTML = tests.map((t) =>
-      '<tr><td class="id-cell">' + t.code + '</td><td>' + t.name + '</td><td>' + t.department + '</td><td>' + t.parameters.length + '</td><td>₹' + t.price + '</td></tr>'
+      '<tr><td class="id-cell">' + t.code + '</td><td>' + t.name + '</td><td>' + t.department + '</td><td>' + t.parameters.length + '</td><td>₹' + t.price + '</td>' +
+      '<td><button type="button" class="btn btn-ghost btn-sm" onclick="editTest(\\'' + t._id + '\\')">Edit</button></td></tr>'
     ).join('');
   } catch (err) {
-    body.innerHTML = '<tr><td colspan="5"><div class="empty-state">' + err.message + '</div></td></tr>';
+    body.innerHTML = '<tr><td colspan="6"><div class="empty-state">' + err.message + '</div></td></tr>';
   }
 }
+
+function editTest(id) {
+  const test = catalogCache.find((t) => t._id === id);
+  if (!test) return;
+  enterEditMode(test);
+}
+window.editTest = editTest;
 
 function addParamRow(vals = {}) {
   const wrap = document.createElement('div');
@@ -101,13 +154,14 @@ document.getElementById('saveTestBtn').addEventListener('click', async () => {
   }
 
   try {
-    await api('/tests', { method: 'POST', body: JSON.stringify(payload) });
-    showToast('Test panel saved.', 'success');
-    document.getElementById('t_code').value = '';
-    document.getElementById('t_name').value = '';
-    document.getElementById('t_price').value = 0;
-    document.getElementById('paramList').innerHTML = '';
-    addParamRow();
+    if (editingId) {
+      await api('/tests/' + editingId, { method: 'PUT', body: JSON.stringify(payload) });
+      showToast('Test panel updated.', 'success');
+    } else {
+      await api('/tests', { method: 'POST', body: JSON.stringify(payload) });
+      showToast('Test panel saved.', 'success');
+    }
+    exitEditMode();
     loadCatalog();
   } catch (err) {
     showToast(err.message, 'error');
