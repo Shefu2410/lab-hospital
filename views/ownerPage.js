@@ -1,141 +1,862 @@
 const { renderPage } = require('./shell');
 
-// ---------------------------------------------------------------------------
-// Owner Approval Page (private — not linked from anywhere in the site nav)
-// Lets the platform owner enter their OWNER_SECRET_KEY once, then view every
-// registered lab and Approve/Revoke it. Talks to /api/labs/owner/* routes
-// using the x-owner-key header (see middleware/ownerAuth.js + labRoutes.js).
-// ---------------------------------------------------------------------------
-
 function ownerPage() {
   const body = `
 <div class="page-container">
-  <div class="card" style="max-width:480px;margin:0 auto 20px;">
-    <h1>Owner Access</h1>
-    <p class="subtitle">Enter your owner key to view and approve labs.</p>
+
+  <!-- Owner Login -->
+  <div class="card" style="max-width:520px;margin:0 auto 24px;">
+    
+    <h1>Owner Panel</h1>
+
+    <p class="subtitle">
+      Enter the owner secret key to manage registered laboratories.
+    </p>
+
     <div class="field">
-      <label for="ownerKeyInput">Owner Secret Key</label>
-      <input type="password" id="ownerKeyInput" placeholder="OWNER_SECRET_KEY" />
+      <label for="ownerKeyInput">
+        Owner Secret Key
+      </label>
+
+      <input
+        type="password"
+        id="ownerKeyInput"
+        placeholder="Enter owner secret key"
+        autocomplete="off"
+      />
     </div>
-    <div id="keyError" class="error-text" style="display:none;"></div>
-    <button id="loadLabsBtn" class="btn btn-primary btn-block">Load Labs</button>
+
+    <div
+      id="keyError"
+      class="form-error"
+      style="display:none;"
+    ></div>
+
+    <button
+      type="button"
+      id="loadLabsBtn"
+      class="btn btn-primary btn-block"
+    >
+      Access Owner Panel
+    </button>
+
   </div>
 
-  <div class="card" id="labsCard" style="display:none;max-width:900px;margin:0 auto;">
-    <div style="display:flex;justify-content:space-between;align-items:center;">
-      <h2 style="margin:0;">Labs</h2>
+
+  <!-- Labs Management -->
+  <div
+    class="card"
+    id="labsCard"
+    style="display:none;max-width:1100px;margin:0 auto;"
+  >
+
+    <div
+      style="
+        display:flex;
+        justify-content:space-between;
+        align-items:center;
+        gap:15px;
+        margin-bottom:20px;
+      "
+    >
+
       <div>
-        <button id="refreshBtn" class="btn btn-secondary">Refresh</button>
-        <button id="forgetKeyBtn" class="btn btn-secondary">Forget Key</button>
+        <h2 style="margin:0;">
+          Laboratory Management
+        </h2>
+
+        <p
+          class="subtitle"
+          style="margin-top:6px;"
+        >
+          Review and manage laboratory registrations.
+        </p>
       </div>
+
+      <div style="display:flex;gap:8px;">
+
+        <button
+          type="button"
+          id="refreshBtn"
+          class="btn btn-secondary"
+        >
+          Refresh
+        </button>
+
+        <button
+          type="button"
+          id="forgetKeyBtn"
+          class="btn btn-secondary"
+        >
+          Logout Owner
+        </button>
+
+      </div>
+
     </div>
-    <table style="width:100%;margin-top:16px;border-collapse:collapse;" id="labsTable">
-      <thead>
-        <tr style="text-align:left;border-bottom:2px solid #e2e8e8;">
-          <th style="padding:8px;">Code</th>
-          <th style="padding:8px;">Name</th>
-          <th style="padding:8px;">Email</th>
-          <th style="padding:8px;">Status</th>
-          <th style="padding:8px;">Action</th>
-        </tr>
-      </thead>
-      <tbody id="labsTbody"></tbody>
-    </table>
+
+
+    <!-- Message -->
+    <div
+      id="labsMessage"
+      style="
+        display:none;
+        padding:12px 14px;
+        border-radius:8px;
+        margin-bottom:16px;
+        font-size:14px;
+      "
+    ></div>
+
+
+    <!-- Labs Table -->
+    <div style="overflow-x:auto;">
+
+      <table
+        style="
+          width:100%;
+          border-collapse:collapse;
+          min-width:800px;
+        "
+      >
+
+        <thead>
+
+          <tr
+            style="
+              text-align:left;
+              border-bottom:2px solid #e2e8e8;
+            "
+          >
+
+            <th style="padding:12px;">
+              Lab Code
+            </th>
+
+            <th style="padding:12px;">
+              Lab Name
+            </th>
+
+            <th style="padding:12px;">
+              Email
+            </th>
+
+            <th style="padding:12px;">
+              Admin
+            </th>
+
+            <th style="padding:12px;">
+              Status
+            </th>
+
+            <th style="padding:12px;">
+              Action
+            </th>
+
+          </tr>
+
+        </thead>
+
+        <tbody id="labsTbody">
+
+        </tbody>
+
+      </table>
+
+    </div>
+
   </div>
-</div>`;
+
+</div>
+`;
+
 
   const pageScript = `
-const keyInput = document.getElementById('ownerKeyInput');
-const keyError = document.getElementById('keyError');
-const loadBtn = document.getElementById('loadLabsBtn');
-const refreshBtn = document.getElementById('refreshBtn');
-const forgetBtn = document.getElementById('forgetKeyBtn');
-const labsCard = document.getElementById('labsCard');
-const tbody = document.getElementById('labsTbody');
 
-function getOwnerKey() { return sessionStorage.getItem('owner_key') || ''; }
-function setOwnerKey(k) { sessionStorage.setItem('owner_key', k); }
-function clearOwnerKey() { sessionStorage.removeItem('owner_key'); }
+const keyInput = document.getElementById('ownerKeyInput');
+
+const keyError = document.getElementById('keyError');
+
+const loadBtn = document.getElementById('loadLabsBtn');
+
+const refreshBtn = document.getElementById('refreshBtn');
+
+const forgetBtn = document.getElementById('forgetKeyBtn');
+
+const labsCard = document.getElementById('labsCard');
+
+const labsTbody = document.getElementById('labsTbody');
+
+const labsMessage = document.getElementById('labsMessage');
+
+
+// ============================================================
+// OWNER KEY
+// ============================================================
+
+function getOwnerKey() {
+  return sessionStorage.getItem('owner_key') || '';
+}
+
+
+function setOwnerKey(key) {
+  sessionStorage.setItem('owner_key', key);
+}
+
+
+function clearOwnerKey() {
+  sessionStorage.removeItem('owner_key');
+}
+
+
+// ============================================================
+// SHOW ERROR
+// ============================================================
+
+function showKeyError(message) {
+
+  keyError.textContent = message;
+
+  keyError.style.display = 'block';
+
+}
+
+
+// ============================================================
+// HIDE ERROR
+// ============================================================
+
+function hideKeyError() {
+
+  keyError.textContent = '';
+
+  keyError.style.display = 'none';
+
+}
+
+
+// ============================================================
+// SHOW MESSAGE
+// ============================================================
+
+function showMessage(message, success = true) {
+
+  labsMessage.textContent = message;
+
+  labsMessage.style.display = 'block';
+
+  if (success) {
+
+    labsMessage.style.background = '#e3f6ec';
+
+    labsMessage.style.color = '#087443';
+
+  } else {
+
+    labsMessage.style.background = '#fdecec';
+
+    labsMessage.style.color = '#b42318';
+
+  }
+
+}
+
+
+// ============================================================
+// OWNER API REQUEST
+// ============================================================
 
 async function ownerFetch(path, options = {}) {
+
   const key = getOwnerKey();
-  const headers = Object.assign({ 'Content-Type': 'application/json', 'x-owner-key': key }, options.headers || {});
-  const res = await fetch('/api' + path, Object.assign({}, options, { headers }));
+
+  const headers = {
+
+    'Content-Type': 'application/json',
+
+    'x-owner-key': key,
+
+    ...(options.headers || {})
+
+  };
+
+
+  const response = await fetch(
+
+    '/api' + path,
+
+    {
+      ...options,
+      headers
+    }
+
+  );
+
+
   let data = null;
-  try { data = await res.json(); } catch (e) {}
-  if (!res.ok) throw new Error((data && data.message) || ('Request failed (' + res.status + ')'));
+
+
+  try {
+
+    data = await response.json();
+
+  } catch (error) {
+
+    data = null;
+
+  }
+
+
+  if (!response.ok) {
+
+    throw new Error(
+
+      data?.message ||
+
+      'Request failed. Please check your owner key.'
+
+    );
+
+  }
+
+
   return data;
+
 }
+
+
+// ============================================================
+// RENDER LABS
+// ============================================================
 
 function renderLabs(labs) {
-  tbody.innerHTML = labs.map((lab) => {
-    const statusHtml = lab.active
-      ? '<span style="color:#0a8;font-weight:600;">Active</span>'
-      : '<span style="color:#c60;font-weight:600;">Pending</span>';
-    const actionBtn = lab.active
-      ? '<button class="btn btn-secondary revokeBtn" data-code="' + lab.code + '">Revoke</button>'
-      : '<button class="btn btn-primary approveBtn" data-code="' + lab.code + '">Approve</button>';
-    return '<tr style="border-bottom:1px solid #eee;">' +
-      '<td style="padding:8px;font-weight:600;">' + lab.code + '</td>' +
-      '<td style="padding:8px;">' + lab.name + '</td>' +
-      '<td style="padding:8px;">' + lab.email + '</td>' +
-      '<td style="padding:8px;">' + statusHtml + '</td>' +
-      '<td style="padding:8px;">' + actionBtn + '</td>' +
-      '</tr>';
+
+  if (!labs || labs.length === 0) {
+
+    labsTbody.innerHTML = \`
+      <tr>
+        <td
+          colspan="6"
+          style="
+            padding:30px;
+            text-align:center;
+            color:var(--ink-soft);
+          "
+        >
+          No laboratories registered yet.
+        </td>
+      </tr>
+    \`;
+
+    return;
+
+  }
+
+
+  labsTbody.innerHTML = labs.map((lab) => {
+
+    let statusHtml = '';
+
+    let actionHtml = '';
+
+
+    // --------------------------------------------------------
+    // PENDING
+    // --------------------------------------------------------
+
+    if (lab.status === 'pending') {
+
+      statusHtml = \`
+        <span
+          style="
+            color:#c47b00;
+            font-weight:600;
+          "
+        >
+          Pending
+        </span>
+      \`;
+
+
+      actionHtml = \`
+        <button
+          type="button"
+          class="btn btn-primary approveBtn"
+          data-code="\${lab.code}"
+        >
+          Approve
+        </button>
+
+        <button
+          type="button"
+          class="btn btn-secondary rejectBtn"
+          data-code="\${lab.code}"
+          style="margin-left:6px;"
+        >
+          Reject
+        </button>
+      \`;
+
+    }
+
+
+    // --------------------------------------------------------
+    // APPROVED
+    // --------------------------------------------------------
+
+    else if (lab.status === 'approved') {
+
+      statusHtml = \`
+        <span
+          style="
+            color:#087443;
+            font-weight:600;
+          "
+        >
+          Approved
+        </span>
+      \`;
+
+
+      actionHtml = \`
+        <button
+          type="button"
+          class="btn btn-secondary revokeBtn"
+          data-code="\${lab.code}"
+        >
+          Revoke
+        </button>
+      \`;
+
+    }
+
+
+    // --------------------------------------------------------
+    // REJECTED
+    // --------------------------------------------------------
+
+    else if (lab.status === 'rejected') {
+
+      statusHtml = \`
+        <span
+          style="
+            color:#b42318;
+            font-weight:600;
+          "
+        >
+          Rejected
+        </span>
+      \`;
+
+
+      actionHtml = \`
+        <button
+          type="button"
+          class="btn btn-primary approveBtn"
+          data-code="\${lab.code}"
+        >
+          Approve
+        </button>
+      \`;
+
+    }
+
+
+    // --------------------------------------------------------
+    // UNKNOWN STATUS
+    // --------------------------------------------------------
+
+    else {
+
+      statusHtml = \`
+        <span style="font-weight:600;">
+          \${lab.status || 'Unknown'}
+        </span>
+      \`;
+
+    }
+
+
+    return \`
+
+      <tr
+        style="
+          border-bottom:1px solid #eee;
+        "
+      >
+
+        <td
+          style="
+            padding:12px;
+            font-weight:600;
+          "
+        >
+          \${lab.code || 'Not assigned'}
+        </td>
+
+
+        <td style="padding:12px;">
+          \${lab.labName || '—'}
+        </td>
+
+
+        <td style="padding:12px;">
+          \${lab.email || '—'}
+        </td>
+
+
+        <td style="padding:12px;">
+          \${lab.adminName || '—'}
+        </td>
+
+
+        <td style="padding:12px;">
+          \${statusHtml}
+        </td>
+
+
+        <td style="padding:12px;">
+          \${actionHtml}
+        </td>
+
+      </tr>
+
+    \`;
+
   }).join('');
 
-  tbody.querySelectorAll('.approveBtn').forEach((btn) => {
-    btn.addEventListener('click', () => handleAction(btn.dataset.code, 'approve'));
-  });
-  tbody.querySelectorAll('.revokeBtn').forEach((btn) => {
-    btn.addEventListener('click', () => handleAction(btn.dataset.code, 'revoke'));
-  });
+
+  // ==========================================================
+  // APPROVE BUTTONS
+  // ==========================================================
+
+  document
+    .querySelectorAll('.approveBtn')
+    .forEach((button) => {
+
+      button.addEventListener('click', () => {
+
+        handleLabAction(
+          button.dataset.code,
+          'approve'
+        );
+
+      });
+
+    });
+
+
+  // ==========================================================
+  // REJECT BUTTONS
+  // ==========================================================
+
+  document
+    .querySelectorAll('.rejectBtn')
+    .forEach((button) => {
+
+      button.addEventListener('click', () => {
+
+        handleLabAction(
+          button.dataset.code,
+          'reject'
+        );
+
+      });
+
+    });
+
+
+  // ==========================================================
+  // REVOKE BUTTONS
+  // ==========================================================
+
+  document
+    .querySelectorAll('.revokeBtn')
+    .forEach((button) => {
+
+      button.addEventListener('click', () => {
+
+        handleLabAction(
+          button.dataset.code,
+          'revoke'
+        );
+
+      });
+
+    });
+
 }
 
-async function handleAction(code, action) {
-  try {
-    await ownerFetch('/labs/owner/' + code + '/' + action, { method: 'PUT' });
-    await loadLabs();
-  } catch (err) {
-    alert(err.message);
+
+// ============================================================
+// APPROVE / REJECT / REVOKE
+// ============================================================
+
+async function handleLabAction(code, action) {
+
+  let message = '';
+
+  if (action === 'approve') {
+
+    message =
+      'Are you sure you want to approve this laboratory?';
+
   }
+
+  if (action === 'reject') {
+
+    message =
+      'Are you sure you want to reject this laboratory?';
+
+  }
+
+  if (action === 'revoke') {
+
+    message =
+      'Are you sure you want to revoke this laboratory approval?';
+
+  }
+
+
+  if (!confirm(message)) {
+
+    return;
+
+  }
+
+
+  try {
+
+    showMessage(
+      'Processing request...',
+      true
+    );
+
+
+    await ownerFetch(
+
+      '/labs/owner/' +
+      encodeURIComponent(code) +
+      '/' +
+      action,
+
+      {
+        method: 'PUT'
+      }
+
+    );
+
+
+    if (action === 'approve') {
+
+      showMessage(
+        'Lab approved successfully.',
+        true
+      );
+
+    }
+
+    else if (action === 'reject') {
+
+      showMessage(
+        'Lab rejected successfully.',
+        true
+      );
+
+    }
+
+    else {
+
+      showMessage(
+        'Lab approval revoked.',
+        true
+      );
+
+    }
+
+
+    await loadLabs();
+
+
+  } catch (error) {
+
+    showMessage(
+      error.message ||
+      'Unable to complete the request.',
+      false
+    );
+
+  }
+
 }
+
+
+// ============================================================
+// LOAD LABS
+// ============================================================
 
 async function loadLabs() {
+
   try {
-    const labs = await ownerFetch('/labs/owner/all');
+
+    loadBtn.disabled = true;
+
+    loadBtn.textContent = 'Loading...';
+
+
+    const labs = await ownerFetch(
+      '/labs/owner/all'
+    );
+
+
     labsCard.style.display = 'block';
+
     renderLabs(labs);
-  } catch (err) {
-    keyError.textContent = err.message || 'Could not load labs. Check your key.';
-    keyError.style.display = 'block';
+
+
+    loadBtn.style.display = 'none';
+
+    keyInput.disabled = true;
+
+
+  } catch (error) {
+
     labsCard.style.display = 'none';
+
+    showKeyError(
+      error.message ||
+      'Could not load laboratories.'
+    );
+
+
+    clearOwnerKey();
+
   }
+
+  finally {
+
+    loadBtn.disabled = false;
+
+    loadBtn.textContent = 'Access Owner Panel';
+
+  }
+
 }
 
-loadBtn.addEventListener('click', async () => {
-  keyError.style.display = 'none';
-  const key = keyInput.value.trim();
-  if (!key) { keyError.textContent = 'Enter your owner key.'; keyError.style.display = 'block'; return; }
-  setOwnerKey(key);
-  await loadLabs();
-});
 
-refreshBtn.addEventListener('click', loadLabs);
+// ============================================================
+// ACCESS OWNER PANEL
+// ============================================================
 
-forgetBtn.addEventListener('click', () => {
-  clearOwnerKey();
-  labsCard.style.display = 'none';
-  keyInput.value = '';
-});
+loadBtn.addEventListener(
+  'click',
+  async () => {
 
-// auto-load if key already saved this session
+    hideKeyError();
+
+    const key = keyInput.value.trim();
+
+
+    if (!key) {
+
+      showKeyError(
+        'Please enter the owner secret key.'
+      );
+
+      return;
+
+    }
+
+
+    setOwnerKey(key);
+
+    await loadLabs();
+
+  }
+);
+
+
+// ============================================================
+// ENTER KEY SUPPORT
+// ============================================================
+
+keyInput.addEventListener(
+  'keydown',
+  (event) => {
+
+    if (event.key === 'Enter') {
+
+      loadBtn.click();
+
+    }
+
+  }
+);
+
+
+// ============================================================
+// REFRESH
+// ============================================================
+
+refreshBtn.addEventListener(
+  'click',
+  async () => {
+
+    hideKeyError();
+
+    await loadLabs();
+
+  }
+);
+
+
+// ============================================================
+// LOGOUT / FORGET KEY
+// ============================================================
+
+forgetBtn.addEventListener(
+  'click',
+  () => {
+
+    clearOwnerKey();
+
+    labsCard.style.display = 'none';
+
+    keyInput.disabled = false;
+
+    keyInput.value = '';
+
+    loadBtn.style.display = 'block';
+
+    hideKeyError();
+
+    labsMessage.style.display = 'none';
+
+  }
+);
+
+
+// ============================================================
+// AUTO LOAD
+// ============================================================
+
 if (getOwnerKey()) {
-  keyInput.value = getOwnerKey();
-  loadLabs();
-}`;
 
-  return renderPage({ title: 'Owner — Approve Labs', body, pageScript });
+  keyInput.value = getOwnerKey();
+
+  loadLabs();
+
 }
+
+`;
+
+
+  return renderPage({
+    title: 'Owner — Approve Labs',
+    body,
+    pageScript
+  });
+}
+
 
 module.exports = ownerPage;
