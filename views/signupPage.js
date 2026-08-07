@@ -13,7 +13,7 @@ function signupPage() {
     </div>
     <div class="auth-quote">
       <div class="big">Bring your lab onto the platform.</div>
-      <div class="meta">Register your lab and its first admin account below. A platform admin reviews every new lab before it can sign in - you'll get a lab code right away, but you won't be able to log in until it's approved.</div>
+      <div class="meta">Register your lab and its first admin account below. A platform admin reviews every new lab before it can sign in - you'll get a lab code once your registration is approved.</div>
     </div>
     <div class="auth-readout">
       <div><span>1</span>form to fill</div>
@@ -32,17 +32,10 @@ function signupPage() {
       <div class="section-title" style="margin-top:0;">Lab details</div>
       <div class="field"><label for="labName">Lab Name *</label><input id="labName" required /></div>
       <div class="field"><label for="labEmail">Lab Email *</label><input id="labEmail" type="email" required /></div>
-      <div class="field-row">
-        <div class="field"><label for="labPhone">Phone</label><input id="labPhone" type="tel" /></div>
-        <div class="field"><label for="labAddress">Address</label><input id="labAddress" /></div>
-      </div>
 
       <div class="section-title">Admin account</div>
       <div class="field"><label for="adminName">Your Name *</label><input id="adminName" required /></div>
-      <div class="field-row">
-        <div class="field"><label for="adminUsername">Username *</label><input id="adminUsername" required /></div>
-        <div class="field"><label for="adminPassword">Password *</label><input id="adminPassword" type="password" required minlength="6" /></div>
-      </div>
+      <div class="field"><label for="adminPassword">Password *</label><input id="adminPassword" type="password" required minlength="6" /></div>
 
       <button type="submit" class="btn btn-primary btn-block" id="signupBtn" style="margin-top:6px;">Register Lab</button>
     </form>
@@ -72,17 +65,14 @@ form.addEventListener('submit', async (e) => {
   try {
     const payload = {
       labName: document.getElementById('labName').value.trim(),
-      labEmail: document.getElementById('labEmail').value.trim(),
-      labPhone: document.getElementById('labPhone').value.trim(),
-      labAddress: document.getElementById('labAddress').value.trim(),
+      email: document.getElementById('labEmail').value.trim(),
       adminName: document.getElementById('adminName').value.trim(),
-      adminUsername: document.getElementById('adminUsername').value.trim(),
-      adminPassword: document.getElementById('adminPassword').value,
+      password: document.getElementById('adminPassword').value,
     };
     const data = await api('/labs/register', { method: 'POST', body: JSON.stringify(payload) });
     form.reset();
     form.style.display = 'none';
-    successBox.innerHTML = data.message + '<br><br>Your lab code is <strong>' + data.lab.code + '</strong> - keep it, you\\'ll need it to log in once approved. <a href="/index.html" style="color:var(--teal-dark);font-weight:600;">Go to sign in</a>';
+    successBox.innerHTML = data.message + '<br><br>You will be able to sign in once a platform admin approves your lab. <a href="/index.html" style="color:var(--teal-dark);font-weight:600;">Go to sign in</a>';
     successBox.classList.add('show');
   } catch (err) {
     errorBox.textContent = err.message || 'Registration failed. Please try again.';
