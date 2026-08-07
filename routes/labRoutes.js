@@ -1,82 +1,83 @@
 const express = require('express');
-const Lab = require('../models/Lab');
-const User = require('../models/User');
-const { protect, requireRole } = require('../middleware/auth');
-const { generateLabCode } = require('../utils/idGenerator');
-
 const router = express.Router();
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+const Lab = require('../models/Lab');
 
-// POST /api/labs/register - a new lab signs itself up (public, no auth).
-// Creates the Lab (status: pending) and its first admin user. The lab
-// cannot log in until a platform admin (superadmin) approves it.
-router.post('/register', async (req, res, next) => {
+// POST /api/labs/register
+router.post('/api/labs/register', async (req, res) => {
   try {
-    const { labName, labEmail, labPhone, labAddress, adminName, adminUsername, adminPassword } = req.body;
+    const { labName, email, adminName, password } = req.body;
 
-    if (!labName || !labEmail || !adminName || !adminUsername || !adminPassword) {
-      return res.status(400).json({
-        message: 'labName, labEmail, adminName, adminUsername and adminPassword are required.',
-      });
+    if (!labName || !email || !adminName || !password) {
+      return res.status(400).json({ message: 'All fields are required' });
     }
 
-    const existingLab = await Lab.findOne({ email: labEmail.trim().toLowerCase() });
-    if (existingLab) {
-      return res.status(409).json({ message: 'A lab with that email has already registered.' });
+    const existing = await Lab.findOne({ email: email.toLowerCase().trim() });
+    if (existing) {
+      return res.status(409).json({ message: 'A lab with this email is already registered' });
     }
 
-    const code = await generateLabCode(labName);
+    const hashedPassword = await bcrypt.hash(password, 10);
 
     const lab = await Lab.create({
-      code,
-      name: labName.trim(),
-      email: labEmail.trim().toLowerCase(),
-      phone: labPhone || '',
-      address: labAddress || '',
-      status: 'pending',
+      labName,
+      email: email.toLowerCase().trim(),
+      adminName,
+      password: hashedPassword,
+      status: 'pending'
     });
 
-    const admin = await User.create({
-      name: adminName.trim(),
-      username: adminUsername.trim().toLowerCase(),
-      password: adminPassword,
-      role: 'admin',
-      lab: lab._id,
-    });
-
-    res.status(201).json({
-      message: `Registration received. Your lab code is ${lab.code} - you'll be able to log in once a platform admin approves your lab.`,
-      lab: { code: lab.code, name: lab.name, status: lab.status },
-      admin: admin.toSafeObject(),
+    return res.status(201).json({
+      message: 'Signup received. Your lab is pending admin approval.',
+      labId: lab._id
     });
   } catch (err) {
-    next(err);
+    console.error('Register error:', err);
+    return res.status(500).json({ message: 'Server error during registration' });
   }
 });
 
-// GET /api/labs/me - the logged-in lab admin's own lab profile
-router.get('/me', protect, requireRole('admin'), async (req, res, next) => {
+// POST /api/labs/login
+router.post('/api/labs/login', async (req, res) => {
   try {
-    const lab = await Lab.findById(req.user.lab);
-    if (!lab) return res.status(404).json({ message: 'Lab not found.' });
-    res.json(lab);
-  } catch (err) {
-    next(err);
-  }
-});
+    const { email, password } = req.body;
 
-// PUT /api/labs/me - lab admin updates their own contact details
-router.put('/me', protect, requireRole('admin'), async (req, res, next) => {
-  try {
-    const { name, phone, address } = req.body;
-    const lab = await Lab.findByIdAndUpdate(
-      req.user.lab,
-      { ...(name && { name }), ...(phone !== undefined && { phone }), ...(address !== undefined && { address }) },
-      { new: true, runValidators: true }
+    if (!email || !password) {
+      return res.status(400).json({ message: 'Email and password are required' });
+    }
+
+    const lab = await Lab.findOne({ email: email.toLowerCase().trim() });
+    if (!lab) {
+      return res.status(404).json({ message: 'Lab not found' });
+    }
+
+    const match = await bcrypt.compare(password, lab.password);
+    if (!match) {
+      return res.status(401).json({ message: 'Invalid credentials' });
+    }
+
+    if (lab.status === 'pending') {
+      return res.status(403).json({ message: 'Your lab is still pending admin approval.' });
+    }
+    if (lab.status === 'rejected') {
+      return res.status(403).json({ message: 'Your lab registration was rejected.' });
+    }
+
+    const token = jwt.sign(
+      { id: lab._id, role: 'lab', labCode: lab.labCode },
+      process.env.JWT_SECRET,
+      { expiresIn: '12h' }
     );
-    if (!lab) return res.status(404).json({ message: 'Lab not found.' });
-    res.json(lab);
+
+    return res.json({
+      message: 'Login successful',
+      token,
+      lab: { id: lab._id, labName: lab.labName, email: lab.email, labCode: lab.labCode }
+    });
   } catch (err) {
-    next(err);
+    console.error('Login error:', err);
+    return res.status(500).json({ message: 'Server error during login' });
   }
 });
 

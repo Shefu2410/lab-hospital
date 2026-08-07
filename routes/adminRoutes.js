@@ -1,132 +1,104 @@
 const express = require('express');
-const Lab = require('../models/Lab');
-const User = require('../models/User');
-const Patient = require('../models/Patient');
-const Result = require('../models/Result');
-const { protect, requireRole } = require('../middleware/auth');
-
 const router = express.Router();
-router.use(protect, requireRole('superadmin'));
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
+const Admin = require('../models/Admin');
+const Lab = require('../models/Lab');
+const requireAdmin = require('../middleware/requireAdmin');
 
-// GET /api/admin/labs?status= - list every lab on the platform
-router.get('/labs', async (req, res, next) => {
+// POST /api/admin/login
+router.post('/api/admin/login', async (req, res) => {
   try {
-    const { status } = req.query;
-    const filter = status ? { status } : {};
-    const labs = await Lab.find(filter).sort({ createdAt: -1 });
-    res.json(labs);
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ message: 'Email and password are required' });
+    }
+
+    const admin = await Admin.findOne({ email: email.toLowerCase().trim() });
+    if (!admin) {
+      return res.status(404).json({ message: 'Admin not found' });
+    }
+
+    const match = await bcrypt.compare(password, admin.password);
+    if (!match) {
+      return res.status(401).json({ message: 'Invalid credentials' });
+    }
+
+    const token = jwt.sign(
+      { id: admin._id, role: 'admin' },
+      process.env.JWT_SECRET,
+      { expiresIn: '8h' }
+    );
+
+    return res.json({ message: 'Login successful', token });
   } catch (err) {
-    next(err);
+    console.error('Admin login error:', err);
+    return res.status(500).json({ message: 'Server error during admin login' });
   }
 });
 
-// GET /api/admin/labs/:id - single lab, with basic usage counts
-router.get('/labs/:id', async (req, res, next) => {
+// GET /api/admin/labs/pending  (admin only)
+router.get('/api/admin/labs/pending', requireAdmin, async (req, res) => {
   try {
-    const lab = await Lab.findById(req.params.id);
-    if (!lab) return res.status(404).json({ message: 'Lab not found.' });
-
-    const [userCount, patientCount, reportCount] = await Promise.all([
-      User.countDocuments({ lab: lab._id }),
-      Patient.countDocuments({ lab: lab._id }),
-      Result.countDocuments({ lab: lab._id }),
-    ]);
-
-    res.json({ ...lab.toObject(), userCount, patientCount, reportCount });
+    const pending = await Lab.find({ status: 'pending' }).select('-password');
+    return res.json(pending);
   } catch (err) {
-    next(err);
+    console.error('Fetch pending labs error:', err);
+    return res.status(500).json({ message: 'Server error fetching pending labs' });
   }
 });
 
-// PUT /api/admin/labs/:id/approve
-router.put('/labs/:id/approve', async (req, res, next) => {
+// GET /api/admin/labs  (admin only) — all labs, any status
+router.get('/api/admin/labs', requireAdmin, async (req, res) => {
+  try {
+    const labs = await Lab.find().select('-password');
+    return res.json(labs);
+  } catch (err) {
+    console.error('Fetch labs error:', err);
+    return res.status(500).json({ message: 'Server error fetching labs' });
+  }
+});
+
+// POST /api/admin/labs/:id/approve  (admin only)
+router.post('/api/admin/labs/:id/approve', requireAdmin, async (req, res) => {
+  try {
+    const labCode = 'LAB-' + crypto.randomBytes(4).toString('hex').toUpperCase();
+
+    const lab = await Lab.findByIdAndUpdate(
+      req.params.id,
+      { status: 'approved', labCode },
+      { new: true }
+    ).select('-password');
+
+    if (!lab) {
+      return res.status(404).json({ message: 'Lab not found' });
+    }
+
+    return res.json({ message: 'Lab approved', lab });
+  } catch (err) {
+    console.error('Approve lab error:', err);
+    return res.status(500).json({ message: 'Server error approving lab' });
+  }
+});
+
+// POST /api/admin/labs/:id/reject  (admin only)
+router.post('/api/admin/labs/:id/reject', requireAdmin, async (req, res) => {
   try {
     const lab = await Lab.findByIdAndUpdate(
       req.params.id,
-      { status: 'approved', approvedAt: new Date(), rejectionReason: '' },
+      { status: 'rejected' },
       { new: true }
-    );
-    if (!lab) return res.status(404).json({ message: 'Lab not found.' });
-    res.json(lab);
+    ).select('-password');
+
+    if (!lab) {
+      return res.status(404).json({ message: 'Lab not found' });
+    }
+
+    return res.json({ message: 'Lab rejected', lab });
   } catch (err) {
-    next(err);
-  }
-});
-
-// PUT /api/admin/labs/:id/reject   body: { reason }
-router.put('/labs/:id/reject', async (req, res, next) => {
-  try {
-    const lab = await Lab.findByIdAndUpdate(
-      req.params.id,
-      { status: 'rejected', rejectionReason: req.body.reason || '' },
-      { new: true }
-    );
-    if (!lab) return res.status(404).json({ message: 'Lab not found.' });
-    res.json(lab);
-  } catch (err) {
-    next(err);
-  }
-});
-
-// PUT /api/admin/labs/:id/suspend
-router.put('/labs/:id/suspend', async (req, res, next) => {
-  try {
-    const lab = await Lab.findByIdAndUpdate(req.params.id, { status: 'suspended' }, { new: true });
-    if (!lab) return res.status(404).json({ message: 'Lab not found.' });
-    res.json(lab);
-  } catch (err) {
-    next(err);
-  }
-});
-
-// PUT /api/admin/labs/:id/reactivate - bring a suspended lab back to approved
-router.put('/labs/:id/reactivate', async (req, res, next) => {
-  try {
-    const lab = await Lab.findByIdAndUpdate(req.params.id, { status: 'approved' }, { new: true });
-    if (!lab) return res.status(404).json({ message: 'Lab not found.' });
-    res.json(lab);
-  } catch (err) {
-    next(err);
-  }
-});
-
-// DELETE /api/admin/labs/:id - permanently remove a lab and everything in it
-router.delete('/labs/:id', async (req, res, next) => {
-  try {
-    const lab = await Lab.findById(req.params.id);
-    if (!lab) return res.status(404).json({ message: 'Lab not found.' });
-
-    await Promise.all([
-      User.deleteMany({ lab: lab._id }),
-      Patient.deleteMany({ lab: lab._id }),
-      Result.deleteMany({ lab: lab._id }),
-      require('../models/TestCatalog').deleteMany({ lab: lab._id }),
-    ]);
-    await lab.deleteOne();
-
-    res.json({ message: `Lab "${lab.name}" and all its data were deleted.` });
-  } catch (err) {
-    next(err);
-  }
-});
-
-// GET /api/admin/stats - platform-wide overview
-router.get('/stats', async (req, res, next) => {
-  try {
-    const [totalLabs, pendingLabs, approvedLabs, rejectedLabs, suspendedLabs, totalPatients, totalReports] =
-      await Promise.all([
-        Lab.countDocuments(),
-        Lab.countDocuments({ status: 'pending' }),
-        Lab.countDocuments({ status: 'approved' }),
-        Lab.countDocuments({ status: 'rejected' }),
-        Lab.countDocuments({ status: 'suspended' }),
-        Patient.countDocuments(),
-        Result.countDocuments(),
-      ]);
-
-    res.json({ totalLabs, pendingLabs, approvedLabs, rejectedLabs, suspendedLabs, totalPatients, totalReports });
-  } catch (err) {
-    next(err);
+    console.error('Reject lab error:', err);
+    return res.status(500).json({ message: 'Server error rejecting lab' });
   }
 });
 
