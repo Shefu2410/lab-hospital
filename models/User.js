@@ -8,14 +8,18 @@ const userSchema = new mongoose.Schema(
     password: { type: String, required: true },
     role: {
       type: String,
-      enum: ['admin', 'pathologist', 'lab-technician'],
+      // 'superadmin' is the platform admin who approves/rejects/suspends labs.
+      // It is not tied to any single Lab.
+      enum: ['superadmin', 'admin', 'pathologist', 'lab-technician'],
       default: 'lab-technician',
     },
-    // Every user belongs to exactly one Lab.
+    // Every user belongs to exactly one Lab, except a superadmin.
     lab: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Lab',
-      required: true,
+      required: function () {
+        return this.role !== 'superadmin';
+      },
     },
   },
   { timestamps: true }

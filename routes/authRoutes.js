@@ -14,6 +14,8 @@ function signToken(user) {
 
 // POST /api/auth/login
 // body: { labCode, username, password }
+// A platform admin (superadmin) logs in the same way but with the reserved
+// lab code "PLATFORM", since they aren't attached to any single lab.
 router.post('/login', async (req, res, next) => {
   try {
     const { labCode, username, password } = req.body;
@@ -21,10 +23,27 @@ router.post('/login', async (req, res, next) => {
       return res.status(400).json({ message: 'Lab code, username and password are required.' });
     }
 
-    const lab = await Lab.findOne({ code: labCode.trim().toUpperCase() });
+    const normalizedCode = labCode.trim().toUpperCase();
+
+    if (normalizedCode === 'PLATFORM') {
+      const admin = await User.findOne({ role: 'superadmin', username: username.trim().toLowerCase() });
+      if (!admin || !(await admin.comparePassword(password))) {
+        return res.status(401).json({ message: 'Invalid username or password.' });
+      }
+      const token = signToken(admin);
+      return res.json({ token, user: admin.toSafeObject(), lab: null });
+    }
+
+    const lab = await Lab.findOne({ code: normalizedCode });
     if (!lab) return res.status(404).json({ message: 'No lab found with that code.' });
-    if (!lab.active) {
-      return res.status(403).json({ message: 'This lab account is deactivated. Contact support.' });
+
+    if (lab.status !== 'approved') {
+      const messages = {
+        pending: 'This lab is still awaiting approval. Please check back once it has been approved.',
+        rejected: `This lab's registration was not approved.${lab.rejectionReason ? ' Reason: ' + lab.rejectionReason : ''}`,
+        suspended: 'This lab account is suspended. Contact support.',
+      };
+      return res.status(403).json({ message: messages[lab.status] || 'This lab is not active.' });
     }
 
     const user = await User.findOne({ lab: lab._id, username: username.trim().toLowerCase() });

@@ -167,28 +167,12 @@ router.put('/:id/status', async (req, res, next) => {
   }
 });
 
-// DELETE /api/results/:id - admin only, permanently removes a report.
-// The linked patient is deleted automatically too, but only if this was
-// their last remaining report - a patient with other reports still on file
-// is left alone.
+// DELETE /api/results/:id - admin only, permanently removes a report
 router.delete('/:id', requireRole('admin'), async (req, res, next) => {
   try {
     const report = await Result.findOneAndDelete({ _id: req.params.id, lab: req.user.lab });
     if (!report) return res.status(404).json({ message: 'Report not found.' });
-
-    const remaining = await Result.countDocuments({ lab: req.user.lab, patient: report.patient });
-
-    let patientDeleted = null;
-    if (remaining === 0) {
-      patientDeleted = await Patient.findOneAndDelete({ _id: report.patient, lab: req.user.lab });
-    }
-
-    res.json({
-      message: patientDeleted
-        ? `Report ${report.reportId} deleted, and patient ${patientDeleted.patientId} (${patientDeleted.name}) was also deleted (no other reports left).`
-        : `Report ${report.reportId} deleted.`,
-      patientDeleted: !!patientDeleted,
-    });
+    res.json({ message: `Report ${report.reportId} deleted.` });
   } catch (err) {
     next(err);
   }

@@ -1,6 +1,7 @@
 /**
  * Run once with `npm run seed` after configuring .env to create:
- *  - a demo lab (active immediately - no approval step)
+ *  - a platform admin (superadmin) account used to approve/reject new labs
+ *  - a demo lab, pre-approved so it's usable immediately
  *  - default logins within that demo lab (admin / pathologist / lab-technician)
  *  - a starter test catalog for the demo lab (RFT, LFT, CBC, Lipid, Glucose)
  * Safe to re-run: it skips anything that already exists.
@@ -93,11 +94,25 @@ const defaultTests = [
 async function seed() {
   await connectDB();
 
-  // 1. Demo lab, active immediately
+  // 0. Platform admin - logs in with lab code "PLATFORM" to approve labs
+  const SUPERADMIN = {
+    name: 'Platform Admin',
+    username: 'superadmin',
+    password: 'super123',
+  };
+  let superadmin = await User.findOne({ role: 'superadmin', username: SUPERADMIN.username });
+  if (!superadmin) {
+    superadmin = await User.create({ ...SUPERADMIN, role: 'superadmin' });
+    console.log(`Created platform admin: ${SUPERADMIN.username} / ${SUPERADMIN.password}`);
+  } else {
+    console.log(`Platform admin already exists (${SUPERADMIN.username})`);
+  }
+
+  // 1. Demo lab, pre-approved so it's usable immediately
   let lab = await Lab.findOne({ email: DEMO_LAB.email });
   if (!lab) {
     const code = await generateLabCode(DEMO_LAB.name);
-    lab = await Lab.create({ ...DEMO_LAB, code });
+    lab = await Lab.create({ ...DEMO_LAB, code, status: 'approved', approvedAt: new Date() });
     console.log(`Created demo lab: ${lab.name} (code: ${lab.code})`);
   } else {
     console.log(`Demo lab already exists (code: ${lab.code})`);
@@ -126,7 +141,8 @@ async function seed() {
   }
 
   console.log('\nSeeding complete.');
-  console.log(`Log in with lab code: ${lab.code}, then any of admin/admin123, pathologist/path123, technician/tech123`);
+  console.log(`Platform admin login -> lab code: PLATFORM, username: superadmin, password: super123`);
+  console.log(`Demo lab login -> lab code: ${lab.code}, then any of admin/admin123, pathologist/path123, technician/tech123`);
   process.exit(0);
 }
 

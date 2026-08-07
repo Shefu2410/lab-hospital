@@ -7,11 +7,15 @@ const labSchema = new mongoose.Schema(
     email: { type: String, required: true, unique: true, trim: true, lowercase: true },
     phone: { type: String, default: '' },
     address: { type: String, default: '' },
-    // Labs created by seed.js or directly in the DB default to active. Labs
-    // created via POST /api/labs/register are explicitly set to inactive and
-    // stay that way until the platform owner approves them - see
-    // routes/labRoutes.js (owner-only endpoints) and middleware/ownerAuth.js.
-    active: { type: Boolean, default: true },
+    // A newly registered lab starts out "pending" and cannot log in until a
+    // platform admin (superadmin) approves it.
+    status: {
+      type: String,
+      enum: ['pending', 'approved', 'rejected', 'suspended'],
+      default: 'pending',
+    },
+    approvedAt: { type: Date, default: null },
+    rejectionReason: { type: String, default: '' },
   },
   { timestamps: true }
 );
