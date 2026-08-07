@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 
@@ -7,7 +8,41 @@ const Lab = require('../models/Lab');
 const { requireOwnerKey } = require('../middleware/ownerAuth');
 
 // ============================================================
-// LAB REGISTRATION
+// Helper: Generate unique Lab Code
+// Example: RKH82A
+// ============================================================
+
+async function generateLabCode(labName) {
+  const base =
+    (labName || 'LAB')
+      .toUpperCase()
+      .replace(/[^A-Z]/g, '')
+      .slice(0, 3) || 'LAB';
+
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const randomPart = Math.random()
+      .toString(36)
+      .substring(2, 5)
+      .toUpperCase();
+
+    const code = `${base}${randomPart}`;
+
+    const existing = await Lab.findOne({
+      labCode: code
+    });
+
+    if (!existing) {
+      return code;
+    }
+  }
+
+  // Very unlikely fallback
+  return `${base}${Date.now().toString().slice(-4)}`;
+}
+
+
+// ============================================================
+// REGISTER NEW LAB
 // POST /api/labs/register
 // ============================================================
 
@@ -20,53 +55,53 @@ router.post('/register', async (req, res) => {
       password
     } = req.body;
 
-    // Check required fields
+    // Validate fields
     if (!labName || !email || !adminName || !password) {
       return res.status(400).json({
-        message: 'All fields are required.'
+        message: 'All fields are required'
       });
     }
 
+    // Check email
     const cleanEmail = email.toLowerCase().trim();
 
-    // Check duplicate email
     const existingLab = await Lab.findOne({
       email: cleanEmail
     });
 
     if (existingLab) {
       return res.status(409).json({
-        message: 'A lab with this email is already registered.'
+        message: 'A lab with this email is already registered'
       });
     }
 
-    // Hash password
+    // Password hash
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create pending lab
+    // Create lab
     const lab = await Lab.create({
       labName: labName.trim(),
       email: cleanEmail,
       adminName: adminName.trim(),
       password: hashedPassword,
 
-      // Lab code is created ONLY after approval
-      labCode: null,
+      // New labs start as pending
+      status: 'pending',
 
-      status: 'pending'
+      // Lab code will be created when owner approves
+      labCode: ''
     });
 
-    res.status(201).json({
-      success: true,
-      message: 'Registration submitted successfully. Your lab is pending owner approval.',
+    return res.status(201).json({
+      message: 'Signup received. Your lab is pending owner approval.',
       labId: lab._id
     });
 
-  } catch (error) {
-    console.error('LAB REGISTER ERROR:', error);
+  } catch (err) {
+    console.error('Register error:', err);
 
-    res.status(500).json({
-      message: 'Server error during lab registration.'
+    return res.status(500).json({
+      message: 'Server error during registration'
     });
   }
 });
@@ -75,29 +110,37 @@ router.post('/register', async (req, res) => {
 // ============================================================
 // LAB LOGIN
 // POST /api/labs/login
+//
+// Login using:
+// Lab Code + Password
 // ============================================================
 
 router.post('/login', async (req, res) => {
   try {
-
     const {
-      email,
+      labCode,
       password
     } = req.body;
 
-    if (!email || !password) {
+    // Validate
+    if (!labCode || !password) {
       return res.status(400).json({
-        message: 'Email and password are required.'
+        message: 'Lab code and password are required'
       });
     }
 
+    const cleanLabCode = labCode
+      .trim()
+      .toUpperCase();
+
+    // Find lab by Lab Code
     const lab = await Lab.findOne({
-      email: email.toLowerCase().trim()
+      labCode: cleanLabCode
     });
 
     if (!lab) {
       return res.status(404).json({
-        message: 'Lab not found.'
+        message: 'Lab not found with this lab code'
       });
     }
 
@@ -109,7 +152,7 @@ router.post('/login', async (req, res) => {
 
     if (!passwordMatch) {
       return res.status(401).json({
-        message: 'Invalid email or password.'
+        message: 'Invalid password'
       });
     }
 
@@ -127,17 +170,10 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    // Revoked
-    if (lab.status === 'revoked') {
+    // Only approved labs can login
+    if (lab.status !== 'approved') {
       return res.status(403).json({
-        message: 'Your lab access has been revoked.'
-      });
-    }
-
-    // Must have code
-    if (!lab.labCode) {
-      return res.status(500).json({
-        message: 'Lab is approved but lab code is missing.'
+        message: 'Your lab is not approved yet.'
       });
     }
 
@@ -154,9 +190,8 @@ router.post('/login', async (req, res) => {
       }
     );
 
-    res.json({
-      success: true,
-      message: 'Login successful.',
+    return res.json({
+      message: 'Login successful',
 
       token,
 
@@ -165,23 +200,23 @@ router.post('/login', async (req, res) => {
         labName: lab.labName,
         email: lab.email,
         adminName: lab.adminName,
-        labCode: lab.labCode
+        labCode: lab.labCode,
+        status: lab.status
       }
     });
 
-  } catch (error) {
+  } catch (err) {
+    console.error('Lab login error:', err);
 
-    console.error('LAB LOGIN ERROR:', error);
-
-    res.status(500).json({
-      message: 'Server error during login.'
+    return res.status(500).json({
+      message: 'Server error during lab login'
     });
   }
 });
 
 
 // ============================================================
-// OWNER - GET ALL LABS
+// OWNER: GET ALL LABS
 // GET /api/labs/owner/all
 // ============================================================
 
@@ -189,23 +224,18 @@ router.get(
   '/owner/all',
   requireOwnerKey,
   async (req, res) => {
-
     try {
-
-      const labs = await Lab.find({})
+      const labs = await Lab.find()
         .select('-password')
-        .sort({
-          createdAt: -1
-        });
+        .sort({ createdAt: -1 });
 
-      res.json(labs);
+      return res.json(labs);
 
-    } catch (error) {
+    } catch (err) {
+      console.error('Get labs error:', err);
 
-      console.error('GET LABS ERROR:', error);
-
-      res.status(500).json({
-        message: 'Failed to load laboratories.'
+      return res.status(500).json({
+        message: 'Failed to load labs'
       });
     }
   }
@@ -213,62 +243,44 @@ router.get(
 
 
 // ============================================================
-// OWNER - APPROVE LAB
-// PUT /api/labs/owner/:id/approve
+// OWNER: APPROVE LAB
+// PUT /api/labs/owner/:code/approve
 // ============================================================
 
 router.put(
-  '/owner/:id/approve',
+  '/owner/:code/approve',
   requireOwnerKey,
   async (req, res) => {
-
     try {
+      const code = req.params.code;
 
-      const lab = await Lab.findById(req.params.id);
+      const lab = await Lab.findOne({
+        $or: [
+          { labCode: code },
+          { _id: code }
+        ]
+      });
 
       if (!lab) {
         return res.status(404).json({
-          message: 'Lab not found.'
+          message: 'Lab not found'
         });
       }
 
-      if (lab.status === 'approved') {
-        return res.status(400).json({
-          message: 'This lab is already approved.'
-        });
+      // Generate Lab Code if it doesn't already exist
+      if (!lab.labCode) {
+        lab.labCode = await generateLabCode(
+          lab.labName
+        );
       }
 
-      // --------------------------------------------------------
-      // Generate unique lab code
-      // Example: RKHCR64
-      // --------------------------------------------------------
-
-      let labCode;
-      let exists = true;
-
-      while (exists) {
-
-        const randomPart = Math.random()
-          .toString(36)
-          .substring(2, 7)
-          .toUpperCase();
-
-        labCode = `RKH${randomPart}`;
-
-        exists = await Lab.exists({
-          labCode
-        });
-      }
-
-      // Update lab
+      // Approve lab
       lab.status = 'approved';
-      lab.labCode = labCode;
 
       await lab.save();
 
-      res.json({
-        success: true,
-        message: 'Laboratory approved successfully.',
+      return res.json({
+        message: 'Lab approved successfully',
         lab: {
           id: lab._id,
           labName: lab.labName,
@@ -279,12 +291,11 @@ router.put(
         }
       });
 
-    } catch (error) {
+    } catch (err) {
+      console.error('Approve lab error:', err);
 
-      console.error('APPROVE LAB ERROR:', error);
-
-      res.status(500).json({
-        message: 'Failed to approve laboratory.'
+      return res.status(500).json({
+        message: 'Failed to approve lab'
       });
     }
   }
@@ -292,81 +303,45 @@ router.put(
 
 
 // ============================================================
-// OWNER - REJECT LAB
-// PUT /api/labs/owner/:id/reject
+// OWNER: REVOKE LAB
+// PUT /api/labs/owner/:code/revoke
 // ============================================================
 
 router.put(
-  '/owner/:id/reject',
+  '/owner/:code/revoke',
   requireOwnerKey,
   async (req, res) => {
-
     try {
+      const code = req.params.code;
 
-      const lab = await Lab.findById(req.params.id);
+      const lab = await Lab.findOne({
+        labCode: code
+      });
 
       if (!lab) {
         return res.status(404).json({
-          message: 'Lab not found.'
+          message: 'Lab not found'
         });
       }
 
-      lab.status = 'rejected';
+      lab.status = 'pending';
 
       await lab.save();
 
-      res.json({
-        success: true,
-        message: 'Laboratory rejected successfully.'
+      return res.json({
+        message: 'Lab approval revoked',
+        lab: {
+          labName: lab.labName,
+          labCode: lab.labCode,
+          status: lab.status
+        }
       });
 
-    } catch (error) {
+    } catch (err) {
+      console.error('Revoke lab error:', err);
 
-      console.error('REJECT LAB ERROR:', error);
-
-      res.status(500).json({
-        message: 'Failed to reject laboratory.'
-      });
-    }
-  }
-);
-
-
-// ============================================================
-// OWNER - REVOKE APPROVED LAB
-// PUT /api/labs/owner/:id/revoke
-// ============================================================
-
-router.put(
-  '/owner/:id/revoke',
-  requireOwnerKey,
-  async (req, res) => {
-
-    try {
-
-      const lab = await Lab.findById(req.params.id);
-
-      if (!lab) {
-        return res.status(404).json({
-          message: 'Lab not found.'
-        });
-      }
-
-      lab.status = 'revoked';
-
-      await lab.save();
-
-      res.json({
-        success: true,
-        message: 'Laboratory access revoked successfully.'
-      });
-
-    } catch (error) {
-
-      console.error('REVOKE LAB ERROR:', error);
-
-      res.status(500).json({
-        message: 'Failed to revoke laboratory.'
+      return res.status(500).json({
+        message: 'Failed to revoke lab'
       });
     }
   }
