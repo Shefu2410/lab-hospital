@@ -23,12 +23,12 @@ function signupPage() {
   </div>
 
   <div class="auth-form-wrap">
-    <form class="auth-form" id="signupForm" style="max-width:420px;">
-      <h1>Register your lab</h1>
-      <p class="lead">Already registered? <a href="/index.html" style="color:var(--teal-dark);font-weight:600;">Sign in instead</a>.</p>
-      <div class="form-error" id="signupError"></div>
-      <div class="form-success" id="signupSuccess"></div>
+    <h1>Register your lab</h1>
+    <p class="lead">Already registered? <a href="/index.html" style="color:var(--teal-dark);font-weight:600;">Sign in instead</a>.</p>
+    <div class="form-error" id="signupError"></div>
+    <div class="form-success" id="signupSuccess"></div>
 
+    <form class="auth-form" id="signupForm" style="max-width:420px;">
       <div class="section-title" style="margin-top:0;">Lab details</div>
       <div class="field"><label for="labName">Lab Name *</label><input id="labName" required /></div>
       <div class="field"><label for="labEmail">Lab Email *</label><input id="labEmail" type="email" required /></div>
