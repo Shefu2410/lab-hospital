@@ -5,7 +5,7 @@ const jwt = require('jsonwebtoken');
 const Lab = require('../models/Lab');
 
 // POST /api/labs/register
-router.post('/api/labs/register', async (req, res) => {
+router.post('/register', async (req, res) => {
   try {
     const { labName, email, adminName, password } = req.body;
 
@@ -39,7 +39,7 @@ router.post('/api/labs/register', async (req, res) => {
 });
 
 // POST /api/labs/login
-router.post('/api/labs/login', async (req, res) => {
+router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
 
