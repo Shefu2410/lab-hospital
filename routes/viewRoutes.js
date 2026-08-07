@@ -4,6 +4,7 @@ const dashboardPage = require('../views/dashboardPage');
 const registrationPage = require('../views/registrationPage');
 const catalogPage = require('../views/catalogPage');
 const resultsPage = require('../views/resultsPage');
+const ownerPage = require('../views/ownerPage');
 
 const router = express.Router();
 
@@ -17,5 +18,6 @@ router.get('/dashboard.html', send(dashboardPage));
 router.get('/registration.html', send(registrationPage));
 router.get('/catalog.html', send(catalogPage));
 router.get('/results.html', send(resultsPage));
+router.get('/owner.html', send(ownerPage));
 
 module.exports = router;

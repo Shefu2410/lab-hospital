@@ -7,9 +7,10 @@ const labSchema = new mongoose.Schema(
     email: { type: String, required: true, unique: true, trim: true, lowercase: true },
     phone: { type: String, default: '' },
     address: { type: String, default: '' },
-    // No platform-level approval step anymore - a lab is usable as soon as it
-    // registers. `active` is kept only so a lab's own admin (or a future
-    // internal tool) could flip it off if the lab needs to be deactivated.
+    // Labs created by seed.js or directly in the DB default to active. Labs
+    // created via POST /api/labs/register are explicitly set to inactive and
+    // stay that way until the platform owner approves them - see
+    // routes/labRoutes.js (owner-only endpoints) and middleware/ownerAuth.js.
     active: { type: Boolean, default: true },
   },
   { timestamps: true }
