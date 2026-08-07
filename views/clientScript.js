@@ -19,6 +19,11 @@ function clearSession() {
 function requireLogin() {
   if (!getToken()) window.location.href = '/index.html';
 }
+function requireSuperadmin() {
+  if (!getToken()) { window.location.href = '/index.html'; return; }
+  const user = getUser();
+  if (!user || user.role !== 'superadmin') { window.location.href = '/dashboard.html'; }
+}
 function logout() {
   clearSession();
   window.location.href = '/index.html';

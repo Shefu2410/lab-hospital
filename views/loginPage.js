@@ -40,7 +40,7 @@ function loginPage() {
         <input type="password" id="password" autocomplete="current-password" placeholder="••••••••" required />
       </div>
       <button type="submit" class="btn btn-primary btn-block" id="loginBtn">Login</button>
-      
+      <p class="lead" style="margin-top:16px;text-align:center;">New lab? <a href="/signup.html" style="color:var(--teal-dark);font-weight:600;">Register here</a>.</p>
     </form>
   </div>
 </div>`;
@@ -64,7 +64,7 @@ form.addEventListener('submit', async (e) => {
     const password = document.getElementById('password').value;
     const data = await api('/auth/login', { method: 'POST', body: JSON.stringify({ labCode, username, password }) });
     setSession(data.token, data.user);
-    window.location.href = '/dashboard.html';
+    window.location.href = data.user.role === 'superadmin' ? '/admin.html' : '/dashboard.html';
   } catch (err) {
     errorBox.textContent = err.message || 'Login failed. Check your credentials.';
     errorBox.classList.add('show');

@@ -121,7 +121,22 @@ function trashButtonHtml(id, reportId) {
     <button
       class="btn btn-danger btn-sm trash-btn"
       title="Delete report \${reportId}"
-      onclick="event.stopPropagation(); deleteReport('\${id}', '\${reportId}', this)"
+      onclick="event.stopPropagation(); deleteReport('\${id}', '\${reportId}')"
+    >🗑️</button>
+  \`;
+}
+
+function escapeForInlineJs(str) {
+  return String(str).replace(/'/g, "\\'");
+}
+
+function patientTrashButtonHtml(patient) {
+  if (!canDelete) return '';
+  return \`
+    <button
+      class="btn btn-danger btn-sm trash-btn"
+      title="Delete patient \${patient.patientId}"
+      onclick="event.stopPropagation(); deletePatient('\${patient._id}', '\${patient.patientId}', '\${escapeForInlineJs(patient.name)}')"
     >🗑️</button>
   \`;
 }
@@ -244,18 +259,11 @@ window.toggleExpand = toggleExpand;
 
 // ---------- delete ----------
 
-async function deleteReport(id, reportId, btnEl) {
+async function deleteReport(id, reportId) {
   const confirmed = window.confirm(
     \`Are you sure you want to delete report \${reportId}? If this patient has no other reports, their patient record will also be deleted. This cannot be undone.\`
   );
   if (!confirmed) return; // user clicked Cancel - nothing changes
-
-  // Disable immediately so a second click (or double-click) can't fire a
-  // second delete request while the first one is still in flight.
-  if (btnEl) {
-    if (btnEl.disabled) return;
-    btnEl.disabled = true;
-  }
 
   try {
     const result = await api(\`/results/\${id}\`, { method: 'DELETE' });
@@ -268,10 +276,30 @@ async function deleteReport(id, reportId, btnEl) {
     loadStats();
   } catch (err) {
     showToast(err.message, 'error');
-    if (btnEl) btnEl.disabled = false; // re-enable so they can retry after a failed attempt
   }
 }
 window.deleteReport = deleteReport;
+
+async function deletePatient(id, patientId, name) {
+  const confirmed = window.confirm(
+    \`Are you sure you want to delete patient \${patientId} (\${name})? This will also delete ALL of their reports. This cannot be undone.\`
+  );
+  if (!confirmed) return; // user clicked Cancel - nothing changes
+
+  try {
+    const result = await api(\`/patients/\${id}\`, { method: 'DELETE' });
+    showToast(result.message, 'success');
+
+    if (activeFilter) applyFilter(activeFilter);
+    else runSearch();
+
+    loadRecent();
+    loadStats();
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+window.deletePatient = deletePatient;
 
 // ---------- rendering the search / filter results table ----------
 
@@ -309,15 +337,16 @@ function patientRowHtml(patient) {
       </td>
       <td>\${patient.phone || '—'}</td>
       <td>\${fmtDateTime(patient.createdAt)}</td>
+      <td>\${patientTrashButtonHtml(patient)}</td>
     </tr>
   \`;
 }
 
 function renderPatientRows(patients, emptyMessage) {
-  searchHead.innerHTML = \`<tr><th>Patient</th><th>Phone</th><th>Registered</th></tr>\`;
+  searchHead.innerHTML = \`<tr><th>Patient</th><th>Phone</th><th>Registered</th><th></th></tr>\`;
 
   if (!patients.length) {
-    searchBody.innerHTML = \`<tr><td colspan="3"><div class="empty-state">\${emptyMessage}</div></td></tr>\`;
+    searchBody.innerHTML = \`<tr><td colspan="4"><div class="empty-state">\${emptyMessage}</div></td></tr>\`;
     return;
   }
 

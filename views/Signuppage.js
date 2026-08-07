@@ -5,69 +5,69 @@ function signupPage() {
 <div class="auth-screen">
   <div class="auth-visual">
     <div class="auth-brand">
-      <div class="mark">GC</div>
+      <div class="mark">RKH</div>
       <div>
-        <div class="name">RKH Cross LIMS</div>
+        <div class="name">RKH LIMS</div>
         <div class="sub">HOSPITAL &amp; AI LAB SUITE</div>
       </div>
     </div>
     <div class="auth-quote">
-      <div class="big">Bring your lab online in one step.</div>
-      <div class="meta">Your patients, tests and reports stay completely separate from every other lab on this platform — no setup, no shared data.</div>
+      <div class="big">Bring your lab onto the platform.</div>
+      <div class="meta">Register your lab and its first admin account below. A platform admin reviews every new lab before it can sign in - you'll get a lab code right away, but you won't be able to log in until it's approved.</div>
     </div>
     <div class="auth-readout">
       <div><span>1</span>form to fill</div>
-      <div><span>0</span>data shared with other labs</div>
-      <div><span>&infin;</span>patients &amp; reports</div>
+      <div><span>1</span>admin account created</div>
+      <div><span>&#10003;</span>reviewed before go-live</div>
     </div>
   </div>
 
   <div class="auth-form-wrap">
     <form class="auth-form" id="signupForm" style="max-width:420px;">
       <h1>Register your lab</h1>
-      <p class="lead">Create your lab's own private workspace.</p>
+      <p class="lead">Already registered? <a href="/index.html" style="color:var(--teal-dark);font-weight:600;">Sign in instead</a>.</p>
       <div class="form-error" id="signupError"></div>
+      <div class="form-success" id="signupSuccess"></div>
 
-      <div class="section-title">Lab Details</div>
-      <div class="field"><label>Lab Name *</label><input id="labName" required /></div>
+      <div class="section-title" style="margin-top:0;">Lab details</div>
+      <div class="field"><label for="labName">Lab Name *</label><input id="labName" required /></div>
+      <div class="field"><label for="labEmail">Lab Email *</label><input id="labEmail" type="email" required /></div>
       <div class="field-row">
-        <div class="field"><label>Lab Email *</label><input id="labEmail" type="email" required /></div>
-        <div class="field"><label>Lab Phone</label><input id="labPhone" type="tel" /></div>
+        <div class="field"><label for="labPhone">Phone</label><input id="labPhone" type="tel" /></div>
+        <div class="field"><label for="labAddress">Address</label><input id="labAddress" /></div>
       </div>
-      <div class="field"><label>Lab Address</label><input id="labAddress" /></div>
 
-      <div class="section-title">Your Admin Login</div>
-      <div class="field"><label>Your Name *</label><input id="adminName" required /></div>
-      <div class="field"><label>Choose a Username *</label><input id="adminUsername" required /></div>
-      <div class="field"><label>Choose a Password *</label><input id="adminPassword" type="password" required /></div>
+      <div class="section-title">Admin account</div>
+      <div class="field"><label for="adminName">Your Name *</label><input id="adminName" required /></div>
+      <div class="field-row">
+        <div class="field"><label for="adminUsername">Username *</label><input id="adminUsername" required /></div>
+        <div class="field"><label for="adminPassword">Password *</label><input id="adminPassword" type="password" required minlength="6" /></div>
+      </div>
 
-      <button type="submit" class="btn btn-primary btn-block" id="signupBtn">Create My Lab</button>
-      <p style="text-align:center;margin-top:16px;font-size:13px;">
-        Already registered? <a href="/index.html" style="color:var(--teal-dark);font-weight:600;">Log in</a>
-      </p>
+      <button type="submit" class="btn btn-primary btn-block" id="signupBtn" style="margin-top:6px;">Register Lab</button>
     </form>
-
-    <div class="card" id="successCard" style="display:none;max-width:420px;text-align:center;">
-      <h3 style="margin-top:0;">Registration submitted ✅</h3>
-      <p class="hint">Save this lab code — you'll need it once your account is approved. Your registration is now pending review; you won't be able to log in until then.</p>
-      <div style="font-size:28px;font-weight:800;letter-spacing:.08em;color:var(--teal-dark);background:#f4fbfa;border:1px dashed var(--teal);border-radius:8px;padding:14px;margin:14px 0;" id="labCodeDisplay"></div>
-      <button class="btn btn-primary btn-block" id="goToLoginBtn">Go to Login</button>
-    </div>
   </div>
 </div>`;
+
+  const extraStyle = `
+.form-success{display:none;background:#e3f6ec;color:var(--accent);padding:12px 14px;border-radius:8px;font-size:13px;margin-bottom:14px;line-height:1.6;}
+.form-success.show{display:block;}
+`;
 
   const pageScript = `
 if (getToken()) window.location.href = '/dashboard.html';
 
 const form = document.getElementById('signupForm');
 const errorBox = document.getElementById('signupError');
+const successBox = document.getElementById('signupSuccess');
 const btn = document.getElementById('signupBtn');
 
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
   errorBox.classList.remove('show');
+  successBox.classList.remove('show');
   btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span> Creating your lab...';
+  btn.innerHTML = '<span class="spinner"></span> Submitting...';
 
   try {
     const payload = {
@@ -79,25 +79,20 @@ form.addEventListener('submit', async (e) => {
       adminUsername: document.getElementById('adminUsername').value.trim(),
       adminPassword: document.getElementById('adminPassword').value,
     };
-
     const data = await api('/labs/register', { method: 'POST', body: JSON.stringify(payload) });
-
+    form.reset();
     form.style.display = 'none';
-    document.getElementById('labCodeDisplay').textContent = data.lab.code;
-    document.getElementById('successCard').style.display = 'block';
+    successBox.innerHTML = data.message + '<br><br>Your lab code is <strong>' + data.lab.code + '</strong> - keep it, you\\'ll need it to log in once approved. <a href="/index.html" style="color:var(--teal-dark);font-weight:600;">Go to sign in</a>';
+    successBox.classList.add('show');
   } catch (err) {
-    errorBox.textContent = err.message || 'Could not register your lab. Please try again.';
+    errorBox.textContent = err.message || 'Registration failed. Please try again.';
     errorBox.classList.add('show');
     btn.disabled = false;
-    btn.textContent = 'Create My Lab';
+    btn.textContent = 'Register Lab';
   }
-});
-
-document.getElementById('goToLoginBtn').addEventListener('click', () => {
-  window.location.href = '/index.html';
 });`;
 
-  return renderPage({ title: 'Register Your Lab', body, pageScript });
+  return renderPage({ title: 'Register Lab', body, pageScript, extraStyle });
 }
 
 module.exports = signupPage;
