@@ -5,12 +5,6 @@ const cors = require('cors');
 
 const connectDB = require('./config/db');
 
-const labRoutes = require('./routes/labRoutes');
-const adminRoutes = require('./routes/adminRoutes');
-app.use(labRoutes);
-app.use(adminRoutes);
-app.use(express.json()); // make sure this is added BEFORE the routes, if not already
-
 // Existing Routes
 const authRoutes = require('./routes/authRoutes');
 const patientRoutes = require('./routes/patientRoutes');
