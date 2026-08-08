@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 
 const Lab = require('../models/Lab');
 const User = require('../models/User');
+const { sendNewLabRegisteredEmail } = require('../utils/mailer');
 
 const { requireOwnerKey } =
   require('../middleware/ownerAuth');
@@ -222,6 +223,16 @@ router.post(
             'pending'
 
         });
+
+
+      // ----------------------------------------------
+      // NOTIFY OWNER BY EMAIL
+      //
+      // Fire-and-forget: do NOT await/block on this,
+      // and never let a mail failure fail registration.
+      // ----------------------------------------------
+
+      sendNewLabRegisteredEmail(lab);
 
 
       return res.status(201).json({
