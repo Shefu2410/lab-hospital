@@ -368,13 +368,22 @@ function renderLabs(labs) {
 
     // --------------------------------------------------------
     // IMPORTANT:
-    // Use MongoDB _id for approval/rejection/revoke.
+    // Use the record's unique id for approval/rejection/revoke.
     //
     // Do NOT use labCode here because pending labs don't
     // have a lab code yet.
+    //
+    // Support multiple possible id field names, since the
+    // backend may serialize Mongo's "_id" as "_id", "id",
+    // or a custom "labId" depending on the schema/toJSON setup.
     // --------------------------------------------------------
 
-    const labId = lab._id;
+    const labId =
+      lab._id ||
+      lab.id ||
+      lab.labId ||
+      lab.uuid ||
+      '';
 
 
     // --------------------------------------------------------
@@ -464,7 +473,19 @@ function renderLabs(labs) {
     let actionHtml = '';
 
 
-    if (status === 'pending') {
+    if (!labId) {
+
+      // No usable id came back from the backend for this
+      // record at all - don't render a button that can only
+      // ever fail, show a clear message instead.
+
+      actionHtml = \`
+        <span style="color:#b42318;">
+          Missing lab ID (check API response)
+        </span>
+      \`;
+
+    } else if (status === 'pending') {
 
       actionHtml = \`
 
