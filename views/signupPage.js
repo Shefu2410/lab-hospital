@@ -77,14 +77,6 @@ function signupPage() {
       ></div>
 
 
-      <!-- SUCCESS -->
-      <div
-        class="form-success"
-        id="signupSuccess"
-        style="display:none;"
-      ></div>
-
-
       <!-- LAB DETAILS -->
       <div class="section-title">
         Laboratory Details
@@ -207,6 +199,13 @@ function signupPage() {
       </p>
 
     </form>
+
+    <!-- SUCCESS (moved outside the form so hiding the form doesn't hide this too) -->
+    <div
+      class="form-success"
+      id="signupSuccess"
+      style="display:none;"
+    ></div>
 
   </div>
 
