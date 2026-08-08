@@ -72,6 +72,12 @@ const labSchema = new mongoose.Schema(
       ],
 
       default: 'pending'
+    },
+
+
+    patientSeq: {
+      type: Number,
+      default: 0
     }
   },
 

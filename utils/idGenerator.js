@@ -1,4 +1,3 @@
-const Patient = require('../models/Patient');
 const Lab = require('../models/Lab');
 
 // Generates a short unique lab code from its name, e.g. "Rajkot Hospital" -> "RAJHO23"
@@ -17,15 +16,24 @@ async function generateLabCode(name) {
   return `${base}${Date.now().toString().slice(-4)}`;
 }
 
-// Generates PT-0001, PT-0002, ... scoped to a single lab (each lab starts its own numbering)
+// Generates PT-0001, PT-0002, ... scoped to a single lab (each lab starts its
+// own numbering). Uses an atomic findOneAndUpdate($inc) directly on the Lab
+// document's patientSeq field - no separate Counter collection needed.
+// MongoDB serializes the increment itself, so two simultaneous registrations
+// can never be handed the same number, unlike the old countDocuments-based
+// approach which had a race window between reading the count and saving the
+// new patient.
+//
+// REQUIRES: add this field to models/Lab.js's schema:
+//   patientSeq: { type: Number, default: 0 }
 async function generatePatientId(labId) {
-  for (let attempt = 0; attempt < 5; attempt++) {
-    const count = await Patient.countDocuments({ lab: labId });
-    const candidate = `PT-${String(count + 1 + attempt).padStart(4, '0')}`;
-    const exists = await Patient.findOne({ lab: labId, patientId: candidate });
-    if (!exists) return candidate;
-  }
-  return `PT-${Date.now()}`;
+  const lab = await Lab.findByIdAndUpdate(
+    labId,
+    { $inc: { patientSeq: 1 } },
+    { new: true }
+  );
+
+  return `PT-${String(lab.patientSeq).padStart(4, '0')}`;
 }
 
 module.exports = { generateLabCode, generatePatientId };

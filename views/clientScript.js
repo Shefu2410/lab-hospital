@@ -15,7 +15,6 @@ function setSession(token, user) {
 function clearSession() {
   localStorage.removeItem('lims_token');
   localStorage.removeItem('lims_user');
-  localStorage.removeItem('lims_acting_lab');
 }
 function requireLogin() {
   if (!getToken()) window.location.href = '/index.html';
@@ -30,28 +29,11 @@ function logout() {
   window.location.href = '/index.html';
 }
 
-// ---- superadmin "acting as lab" helpers ----
-// Superadmin accounts have no lab of their own, so lab-scoped routes
-// (patients, results, etc.) need to know which lab to act on behalf of.
-// This is stored separately from the session so it survives independently
-// of login/logout, and is only ever read/sent for superadmin users.
-function getActingLab() {
-  try { return JSON.parse(localStorage.getItem('lims_acting_lab') || 'null'); }
-  catch (e) { return null; }
-}
-function setActingLab(lab) {
-  if (lab) localStorage.setItem('lims_acting_lab', JSON.stringify(lab));
-  else localStorage.removeItem('lims_acting_lab');
-}
-
 // ---- API wrapper ----
 async function api(path, options = {}) {
-  const user = getUser();
-  const actingLab = user && user.role === 'superadmin' ? getActingLab() : null;
   const headers = Object.assign(
     { 'Content-Type': 'application/json' },
     getToken() ? { Authorization: 'Bearer ' + getToken() } : {},
-    actingLab ? { 'x-lab-id': actingLab._id } : {},
     options.headers || {}
   );
   const res = await fetch('/api' + path, Object.assign({}, options, { headers }));
@@ -83,39 +65,8 @@ function renderSidebar(activeKey) {
     '<div class="brand">RKH LIMS' +
     (user ? '<div style="font-weight:400;font-size:11px;color:#9fb0b0;margin-top:4px;">' + user.name + ' &middot; ' + user.role + '</div>' : '') +
     '</div>' +
-    (user && user.role === 'superadmin' ? '<div id="actingLabBox" style="padding:10px 16px;"></div>' : '') +
     links +
     '<a href="#" class="logout" onclick="logout();return false;">Log out</a>';
-
-  if (user && user.role === 'superadmin') {
-    renderActingLabPicker();
-  }
-}
-
-async function renderActingLabPicker() {
-  const box = document.getElementById('actingLabBox');
-  if (!box) return;
-  box.innerHTML = '<div style="font-size:11px;color:#9fb0b0;margin-bottom:4px;">Acting as lab</div><select id="actingLabSelect" style="width:100%;font-size:12px;padding:4px;"><option value="">— none —</option></select>';
-  try {
-    const labs = await api('/labs');
-    const select = document.getElementById('actingLabSelect');
-    if (!select) return;
-    const current = getActingLab();
-    labs.forEach((lab) => {
-      const opt = document.createElement('option');
-      opt.value = lab._id;
-      opt.textContent = lab.name;
-      if (current && current._id === lab._id) opt.selected = true;
-      select.appendChild(opt);
-    });
-    select.addEventListener('change', () => {
-      const lab = labs.find((l) => l._id === select.value);
-      setActingLab(lab || null);
-      window.location.reload();
-    });
-  } catch (err) {
-    box.innerHTML = '<div style="font-size:11px;color:#e57373;">Could not load labs.</div>';
-  }
 }
 
 // ---- small UI helpers shared across pages ----
