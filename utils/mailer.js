@@ -1,17 +1,6 @@
 const nodemailer = require('nodemailer');
 
 
-// ======================================================
-// GMAIL TRANSPORTER
-//
-// Requires these environment variables (.env):
-//
-//   GMAIL_USER      -> your full gmail address
-//   GMAIL_APP_PASS   -> 16-character app password
-//                        (NOT your normal gmail password)
-//   OWNER_EMAIL      -> where notifications should be sent
-//                        (can be the same as GMAIL_USER)
-//
 // How to get a Gmail App Password:
 //   1. Turn on 2-Step Verification on the Google account:
 //      https://myaccount.google.com/security
@@ -19,16 +8,15 @@ const nodemailer = require('nodemailer');
 //   3. Create an app password for "Mail" and copy the
 //      16-character code (no spaces) into GMAIL_APP_PASS.
 // ======================================================
-
 const transporter = nodemailer.createTransport({
-
-  service: 'gmail',
-
-  auth: {
-    user: process.env.GMAIL_USER,
-    pass: process.env.GMAIL_APP_PASS
-  }
-
+    host: 'smtp.gmail.com',
+    port: 465,
+    secure: true,          // true for port 465, false for 587
+    auth: {
+        user: process.env.GMAIL_USER,
+        pass: process.env.GMAIL_APP_PASS
+    },
+    family: 4               // force IPv4, avoids ENETUNREACH on IPv6-only routes
 });
 
 
