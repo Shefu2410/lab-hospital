@@ -62,4 +62,13 @@ function requireRole(...roles) {
   };
 }
 
-module.exports = { protect, requireRole };
+// Blocks accounts with no lab attached (e.g. superadmin) from lab-scoped
+// routes like patients/results, where req.user.lab is required.
+function requireLab(req, res, next) {
+  if (!req.user || !req.user.lab) {
+    return res.status(403).json({ message: 'This action is only available to lab accounts.' });
+  }
+  next();
+}
+
+module.exports = { protect, requireRole, requireLab };

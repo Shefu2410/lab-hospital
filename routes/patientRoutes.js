@@ -1,11 +1,12 @@
 const express = require('express');
 const Patient = require('../models/Patient');
 const Result = require('../models/Result');
-const { protect, requireRole } = require('../middleware/auth');
+const { protect, requireRole, requireLab } = require('../middleware/auth');
 const { generatePatientId } = require('../utils/idGenerator');
 
 const router = express.Router();
 router.use(protect);
+router.use(requireLab);
 
 // GET /api/patients - list, scoped to the logged-in user's lab, optional ?search= and/or ?today=true
 router.get('/', async (req, res, next) => {
