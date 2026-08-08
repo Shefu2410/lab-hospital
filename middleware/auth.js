@@ -21,10 +21,23 @@ async function protect(req, res, next) {
       return res.status(401).json({ message: 'User no longer exists.' });
     }
 
-    // Superadmins aren't attached to a lab - nothing further to check.
+    // Superadmins aren't attached to a lab by default. If they're hitting a
+    // lab-scoped route (patients, results, etc.), they must specify which
+    // lab they're acting on behalf of via the x-lab-id header or ?lab= query.
     if (user.role === 'superadmin') {
       req.user = user.toSafeObject();
-      req.lab = null;
+      const actingLabId = req.headers['x-lab-id'] || req.query.lab;
+
+      if (actingLabId) {
+        const lab = await Lab.findById(actingLabId);
+        if (!lab) {
+          return res.status(404).json({ message: 'Specified lab could not be found.' });
+        }
+        req.user.lab = lab._id;
+        req.lab = lab;
+      } else {
+        req.lab = null;
+      }
       return next();
     }
 
@@ -62,11 +75,15 @@ function requireRole(...roles) {
   };
 }
 
-// Blocks accounts with no lab attached (e.g. superadmin) from lab-scoped
-// routes like patients/results, where req.user.lab is required.
+// Blocks accounts with no lab attached from lab-scoped routes like
+// patients/results, where req.user.lab is required. Superadmins can pass
+// this by specifying which lab they're acting on behalf of (see protect()).
 function requireLab(req, res, next) {
   if (!req.user || !req.user.lab) {
-    return res.status(403).json({ message: 'This action is only available to lab accounts.' });
+    const message = req.user?.role === 'superadmin'
+      ? 'Specify which lab to act on behalf of (x-lab-id header or ?lab= query param).'
+      : 'This action is only available to lab accounts.';
+    return res.status(403).json({ message });
   }
   next();
 }
