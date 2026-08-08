@@ -10,7 +10,7 @@ async function generateLabCode(name) {
   for (let attempt = 0; attempt < 8; attempt++) {
     const suffix = Math.floor(10 + Math.random() * 89); // 2-digit suffix
     const candidate = `${base}${suffix}`;
-    const exists = await Lab.findOne({ code: candidate });
+    const exists = await Lab.findOne({ labCode: candidate }); // was: { code: candidate }
     if (!exists) return candidate;
   }
   return `${base}${Date.now().toString().slice(-4)}`;
