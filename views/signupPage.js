@@ -17,9 +17,7 @@ function signupPage() {
     </div>
 
     <div class="auth-quote">
-      <div class="big">
-        Register your laboratory.
-      </div>
+      <div class="big">Register your laboratory.</div>
 
       <div class="meta">
         Create your laboratory account and first administrator.
@@ -60,7 +58,7 @@ function signupPage() {
         Create an account for your laboratory.
       </p>
 
-      <p class="lead">
+      <p class="lead" style="margin-top:-8px;">
         Already registered?
         <a
           href="/index.html"
@@ -87,22 +85,23 @@ function signupPage() {
       ></div>
 
 
-      <!-- LAB INFORMATION -->
+      <!-- LAB DETAILS -->
       <div class="section-title">
-        Laboratory Information
+        Laboratory Details
       </div>
 
 
       <div class="field">
 
         <label for="labName">
-          Laboratory Name *
+          Lab Name *
         </label>
 
         <input
           type="text"
           id="labName"
-          placeholder="e.g. RKH Diagnostic Laboratory"
+          placeholder="Enter laboratory name"
+          autocomplete="organization"
           required
         />
 
@@ -112,20 +111,21 @@ function signupPage() {
       <div class="field">
 
         <label for="labEmail">
-          Laboratory Email *
+          Lab Email *
         </label>
 
         <input
           type="email"
           id="labEmail"
           placeholder="lab@example.com"
+          autocomplete="email"
           required
         />
 
       </div>
 
 
-      <!-- ADMIN INFORMATION -->
+      <!-- ADMIN ACCOUNT -->
       <div class="section-title">
         Administrator Account
       </div>
@@ -134,13 +134,14 @@ function signupPage() {
       <div class="field">
 
         <label for="adminName">
-          Administrator Name *
+          Admin Name *
         </label>
 
         <input
           type="text"
           id="adminName"
           placeholder="Enter administrator name"
+          autocomplete="name"
           required
         />
 
@@ -149,77 +150,36 @@ function signupPage() {
 
       <div class="field">
 
-        <label for="adminUsername">
+        <label for="username">
           Username *
         </label>
 
         <input
           type="text"
-          id="adminUsername"
+          id="username"
           placeholder="e.g. admin"
           autocomplete="username"
           required
           minlength="3"
         />
 
-        <small>
-          This username will be used to sign in to your laboratory.
-        </small>
-
       </div>
 
 
       <div class="field">
 
-        <label for="adminPassword">
+        <label for="password">
           Password *
         </label>
 
         <input
           type="password"
-          id="adminPassword"
-          placeholder="Create a password"
+          id="password"
+          placeholder="Minimum 6 characters"
           autocomplete="new-password"
           required
           minlength="6"
         />
-
-      </div>
-
-
-      <div class="field">
-
-        <label for="confirmPassword">
-          Confirm Password *
-        </label>
-
-        <input
-          type="password"
-          id="confirmPassword"
-          placeholder="Confirm your password"
-          autocomplete="new-password"
-          required
-          minlength="6"
-        />
-
-      </div>
-
-
-      <!-- INFORMATION -->
-      <div class="signup-info">
-
-        <strong>Important</strong>
-
-        <p>
-          After registration, your laboratory will remain
-          <strong>Pending</strong> until the platform owner approves it.
-        </p>
-
-        <p>
-          Once approved, a unique Lab Code will be assigned to your
-          laboratory. You will use the Lab Code, username and password
-          to sign in.
-        </p>
 
       </div>
 
@@ -229,8 +189,22 @@ function signupPage() {
         class="btn btn-primary btn-block"
         id="signupBtn"
       >
-        Register Laboratory
+        Register Lab
       </button>
+
+
+      <p
+        class="lead"
+        style="margin-top:16px;text-align:center;"
+      >
+        Already have an account?
+        <a
+          href="/index.html"
+          style="color:var(--teal-dark);font-weight:600;"
+        >
+          Sign in
+        </a>
+      </p>
 
     </form>
 
@@ -242,31 +216,12 @@ function signupPage() {
 
   const extraStyle = `
 
-.signup-info {
-  background: #f0f8f7;
-  border: 1px solid #d5ebe8;
-  border-radius: 10px;
-  padding: 14px 16px;
-  margin: 16px 0;
-  font-size: 13px;
-  line-height: 1.6;
-  color: #345;
-}
-
-.signup-info strong {
-  color: var(--teal-dark);
-}
-
-.signup-info p {
-  margin: 6px 0;
-}
-
 .form-success {
   display: none;
   background: #e3f6ec;
-  color: #087443;
-  padding: 14px 16px;
-  border-radius: 10px;
+  color: #087f5b;
+  padding: 16px;
+  border-radius: 8px;
   font-size: 14px;
   margin-bottom: 16px;
   line-height: 1.6;
@@ -277,18 +232,7 @@ function signupPage() {
 }
 
 .form-error {
-  display: none;
-}
-
-.form-error.show {
-  display: block;
-}
-
-.field small {
-  display: block;
-  margin-top: 5px;
-  font-size: 12px;
-  color: #718096;
+  margin-bottom: 16px;
 }
 
 `;
@@ -296,220 +240,209 @@ function signupPage() {
 
   const pageScript = `
 
-if (getToken()) {
-  window.location.href = '/dashboard.html';
-}
+(function () {
 
+  const form = document.getElementById('signupForm');
+  const errorBox = document.getElementById('signupError');
+  const successBox = document.getElementById('signupSuccess');
+  const signupBtn = document.getElementById('signupBtn');
 
-const form = document.getElementById('signupForm');
-
-const errorBox =
-  document.getElementById('signupError');
-
-const successBox =
-  document.getElementById('signupSuccess');
-
-const btn =
-  document.getElementById('signupBtn');
-
-
-form.addEventListener('submit', async (e) => {
-
-  e.preventDefault();
-
-
-  errorBox.textContent = '';
-  errorBox.classList.remove('show');
-
-  successBox.innerHTML = '';
-  successBox.classList.remove('show');
-
-
-  const labName =
-    document.getElementById('labName')
-      .value
-      .trim();
-
-  const labEmail =
-    document.getElementById('labEmail')
-      .value
-      .trim();
-
-  const adminName =
-    document.getElementById('adminName')
-      .value
-      .trim();
-
-  const adminUsername =
-    document.getElementById('adminUsername')
-      .value
-      .trim()
-      .toLowerCase();
-
-  const password =
-    document.getElementById('adminPassword')
-      .value;
-
-  const confirmPassword =
-    document.getElementById('confirmPassword')
-      .value;
-
-
-  // Password validation
-  if (password.length < 6) {
-
-    errorBox.textContent =
-      'Password must contain at least 6 characters.';
-
-    errorBox.classList.add('show');
-
+  if (!form) {
+    console.error('Signup form not found.');
     return;
   }
 
 
-  // Confirm password
-  if (password !== confirmPassword) {
+  function showError(message) {
 
-    errorBox.textContent =
-      'Passwords do not match.';
+    errorBox.textContent = message || 'Registration failed.';
+
+    errorBox.style.display = 'block';
 
     errorBox.classList.add('show');
-
-    return;
   }
 
 
-  // Username validation
-  if (adminUsername.length < 3) {
+  function hideError() {
 
-    errorBox.textContent =
-      'Username must contain at least 3 characters.';
+    errorBox.textContent = '';
 
-    errorBox.classList.add('show');
+    errorBox.style.display = 'none';
 
-    return;
+    errorBox.classList.remove('show');
   }
 
 
-  btn.disabled = true;
-
-  btn.innerHTML =
-    '<span class="spinner"></span> Registering...';
-
-
-  try {
-
-    const payload = {
-
-      labName: labName,
-
-      email: labEmail,
-
-      adminName: adminName,
-
-      username: adminUsername,
-
-      password: password
-
-    };
-
-
-    console.log('Lab Registration:', payload);
-
-
-    const data = await api(
-      '/labs/register',
-      {
-        method: 'POST',
-
-        body: JSON.stringify(payload)
-      }
-    );
-
-
-    form.reset();
-
-
-    let message =
-
-      '<strong>Registration submitted successfully.</strong><br><br>' +
-
-      'Your laboratory is currently <strong>pending approval</strong>.' +
-
-      '<br><br>' +
-
-      'The platform owner will review your registration. ' +
-
-      'After approval, you will receive your unique Lab Code.' +
-
-      '<br><br>';
-
-
-    if (data.labCode) {
-
-      message +=
-
-        '<strong>Your Lab Code:</strong> ' +
-
-        '<span style="font-size:18px;font-weight:700;">' +
-
-        data.labCode +
-
-        '</span><br><br>';
-
-    }
-
-
-    message +=
-
-      'You can sign in after your laboratory has been approved.' +
-
-      '<br><br>' +
-
-      '<a href="/index.html" ' +
-
-      'style="color:var(--teal-dark);font-weight:700;">' +
-
-      'Go to Sign In' +
-
-      '</a>';
-
-
-    form.style.display = 'none';
+  function showSuccess(message) {
 
     successBox.innerHTML = message;
 
+    successBox.style.display = 'block';
+
     successBox.classList.add('show');
-
-
-  } catch (err) {
-
-    console.error('Registration error:', err);
-
-
-    errorBox.textContent =
-      err.message ||
-      'Registration failed. Please try again.';
-
-    errorBox.classList.add('show');
-
-
-    btn.disabled = false;
-
-    btn.textContent =
-      'Register Laboratory';
-
   }
 
-});
+
+  form.addEventListener('submit', async function (event) {
+
+    event.preventDefault();
+
+    hideError();
+
+    successBox.style.display = 'none';
+
+    signupBtn.disabled = true;
+
+    signupBtn.textContent = 'Registering...';
+
+
+    try {
+
+      const labName =
+        document.getElementById('labName').value.trim();
+
+      const email =
+        document.getElementById('labEmail').value.trim();
+
+      const adminName =
+        document.getElementById('adminName').value.trim();
+
+      const username =
+        document.getElementById('username').value.trim();
+
+      const password =
+        document.getElementById('password').value;
+
+
+      if (!labName) {
+        throw new Error('Please enter the lab name.');
+      }
+
+
+      if (!email) {
+        throw new Error('Please enter the lab email.');
+      }
+
+
+      if (!adminName) {
+        throw new Error('Please enter the admin name.');
+      }
+
+
+      if (!username) {
+        throw new Error('Please enter a username.');
+      }
+
+
+      if (username.length < 3) {
+        throw new Error('Username must contain at least 3 characters.');
+      }
+
+
+      if (!password) {
+        throw new Error('Please enter a password.');
+      }
+
+
+      if (password.length < 6) {
+        throw new Error('Password must contain at least 6 characters.');
+      }
+
+
+      const payload = {
+        labName: labName,
+        email: email.toLowerCase(),
+        adminName: adminName,
+        username: username.toLowerCase(),
+        password: password
+      };
+
+
+      console.log('Lab Registration:', {
+        labName: labName,
+        email: email,
+        adminName: adminName,
+        username: username
+      });
+
+
+      const response = await fetch('/api/labs/register', {
+        method: 'POST',
+
+        headers: {
+          'Content-Type': 'application/json'
+        },
+
+        body: JSON.stringify(payload)
+      });
+
+
+      let data = {};
+
+      try {
+        data = await response.json();
+      } catch (jsonError) {
+        data = {};
+      }
+
+
+      if (!response.ok) {
+
+        throw new Error(
+          data.message ||
+          'Registration failed. Please try again.'
+        );
+
+      }
+
+
+      form.style.display = 'none';
+
+
+      const labCodeText =
+        data.labCode
+          ? '<br><br><strong>Your Lab Code:</strong> ' + data.labCode
+          : '';
+
+
+      showSuccess(
+        '<strong>Registration submitted successfully.</strong>' +
+        '<br><br>' +
+        'Your laboratory is currently waiting for owner approval.' +
+        labCodeText +
+        '<br><br>' +
+        'You will be able to sign in after your laboratory is approved.' +
+        '<br><br>' +
+        '<a href="/index.html" style="color:var(--teal-dark);font-weight:600;">Go to Sign In</a>'
+      );
+
+    } catch (error) {
+
+      console.error('Registration error:', error);
+
+      showError(
+        error.message ||
+        'Registration failed. Please try again.'
+      );
+
+      signupBtn.disabled = false;
+
+      signupBtn.textContent = 'Register Lab';
+
+    }
+
+  });
+
+})();
 
 `;
 
+
   return renderPage({
     title: 'Register Laboratory',
-    body,
-    pageScript,
-    extraStyle
+    body: body,
+    pageScript: pageScript,
+    extraStyle: extraStyle
   });
 }
 
