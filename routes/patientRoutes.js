@@ -44,8 +44,12 @@ router.get('/:id', async (req, res, next) => {
 });
 
 // POST /api/patients - register a new patient in the current lab.
-// A person can only ever be registered once: phone number is the check used
-// to catch a repeat registration, since name alone isn't reliably unique.
+// Phone numbers are NOT treated as a uniqueness check: real-world numbers are
+// frequently shared (family members on one household/landline number) or
+// entered with minor digit variance, so blocking registration on a phone
+// match caused valid, distinct patients to be rejected. Each patient is
+// identified purely by their generated patientId (guaranteed unique per lab
+// by the schema's compound index), not by phone number.
 router.post('/', async (req, res, next) => {
   try {
     const { name, age, ageUnit, gender, phone, email, address, referredBy } = req.body;
@@ -53,14 +57,6 @@ router.post('/', async (req, res, next) => {
 
     if (!name || age === undefined || age === null || !gender || !cleanPhone) {
       return res.status(400).json({ message: 'Name, age, gender and phone are required.' });
-    }
-
-    const existing = await Patient.findOne({ lab: req.user.lab, phone: cleanPhone });
-    if (existing) {
-      return res.status(409).json({
-        message: `Phone number ${cleanPhone} is already registered to ${existing.name} (${existing.patientId}). If this is a different person, use their own phone number; otherwise use the existing record instead of registering again.`,
-        existingPatient: existing,
-      });
     }
 
     const patientId = await generatePatientId(req.user.lab);
