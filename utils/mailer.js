@@ -1,6 +1,23 @@
 const { Resend } = require('resend');
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+// ======================================================
+// LAZY RESEND CLIENT
+//
+// We do NOT construct `new Resend(...)` at the top level.
+// If RESEND_API_KEY is missing, doing so throws immediately
+// at require-time and crashes the entire server before it
+// can even bind to a port. Instead we create the client on
+// first use, only if the key exists.
+// ======================================================
+
+let resend = null;
+
+function getResendClient() {
+  if (!resend && process.env.RESEND_API_KEY) {
+    resend = new Resend(process.env.RESEND_API_KEY);
+  }
+  return resend;
+}
 
 
 // ======================================================
@@ -29,7 +46,9 @@ async function sendNewLabRegisteredEmail(lab) {
 
   }
 
-  if (!process.env.RESEND_API_KEY) {
+  const client = getResendClient();
+
+  if (!client) {
 
     console.error(
       'sendNewLabRegisteredEmail: RESEND_API_KEY not set, skipping email.'
@@ -77,7 +96,7 @@ async function sendNewLabRegisteredEmail(lab) {
 
   try {
 
-    const { data, error } = await resend.emails.send({
+    const { data, error } = await client.emails.send({
       // While testing on a free Resend account (no verified domain yet),
       // this MUST stay exactly as below — Resend only allows sending
       // from onboarding@resend.dev until you verify your own domain.
