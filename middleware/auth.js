@@ -42,6 +42,9 @@ async function protect(req, res, next) {
     }
 
     req.user = user.toSafeObject();
+    // Belt-and-suspenders: guarantee req.user.lab is always the lab's id,
+    // even if toSafeObject() ever changes what it returns.
+    req.user.lab = user.lab;
     req.lab = lab;
     next();
   } catch (err) {
