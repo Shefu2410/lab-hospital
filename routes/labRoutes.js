@@ -5,6 +5,7 @@ const jwt = require('jsonwebtoken');
 const Lab = require('../models/Lab');
 const User = require('../models/User');
 const { sendNewLabRegisteredEmail } = require('../utils/mailer');
+const { generateLabCode } = require('../utils/idGenerator');
 
 const { requireOwnerKey } =
   require('../middleware/ownerAuth');
@@ -64,63 +65,6 @@ function requireSuperadmin(req, res, next) {
     });
 
   }
-
-}
-
-
-// ======================================================
-// GENERATE LAB CODE
-// ======================================================
-
-function generateLabCode() {
-
-  const chars =
-    'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-
-  let code = 'RKH';
-
-  for (let i = 0; i < 5; i++) {
-
-    code +=
-      chars.charAt(
-        Math.floor(
-          Math.random() * chars.length
-        )
-      );
-
-  }
-
-  return code;
-
-}
-
-
-// ======================================================
-// CREATE UNIQUE LAB CODE
-// ======================================================
-
-async function createUniqueLabCode() {
-
-  let code;
-
-  let exists = true;
-
-
-  while (exists) {
-
-    code =
-      generateLabCode();
-
-
-    exists =
-      await Lab.exists({
-        labCode: code
-      });
-
-  }
-
-
-  return code;
 
 }
 
@@ -756,7 +700,7 @@ router.put(
 
       const labCode =
         lab.labCode ||
-        await createUniqueLabCode();
+        await generateLabCode(lab.labName);
 
 
       // ----------------------------------------------
