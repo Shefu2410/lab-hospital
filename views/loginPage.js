@@ -11,11 +11,12 @@ function loginPage() {
 
       <div>
         <div class="name">RKH LIMS</div>
-        <div class="sub">HOSPITAL &amp; AI LAB SUITE</div>
+        <div class="sub">HOSPITAL &amp; LAB SUITE</div>
       </div>
     </div>
 
     <div class="auth-quote">
+
       <div class="big">
         Every sample, tracked from tube to report.
       </div>
@@ -24,12 +25,13 @@ function loginPage() {
         Registration, result entry, result approval,
         and laboratory management in one workspace.
       </div>
+
     </div>
 
     <div class="auth-readout">
 
       <div>
-        <span id="statPanels">5</span>
+        <span>5</span>
         test panels
       </div>
 
@@ -58,8 +60,10 @@ function loginPage() {
         Enter your approved laboratory credentials to continue.
       </p>
 
-
-      <div class="form-error" id="loginError"></div>
+      <div
+        class="form-error"
+        id="loginError">
+      </div>
 
 
       <!-- LAB CODE -->
@@ -74,7 +78,27 @@ function loginPage() {
           type="text"
           id="labCode"
           placeholder="e.g. RKHABC"
+          autocomplete="organization"
           style="text-transform:uppercase;"
+          required
+        />
+
+      </div>
+
+
+      <!-- USERNAME -->
+
+      <div class="field">
+
+        <label for="username">
+          Username *
+        </label>
+
+        <input
+          type="text"
+          id="username"
+          placeholder="e.g. admin"
+          autocomplete="username"
           required
         />
 
@@ -92,8 +116,8 @@ function loginPage() {
         <input
           type="password"
           id="password"
+          placeholder="Enter your password"
           autocomplete="current-password"
-          placeholder="••••••••"
           required
         />
 
@@ -103,8 +127,7 @@ function loginPage() {
       <button
         type="submit"
         class="btn btn-primary btn-block"
-        id="loginBtn"
-      >
+        id="loginBtn">
         Login
       </button>
 
@@ -113,6 +136,7 @@ function loginPage() {
         class="lead"
         style="margin-top:16px;text-align:center;"
       >
+
         New lab?
 
         <a
@@ -139,11 +163,14 @@ if (getToken()) {
 }
 
 
-const form = document.getElementById('loginForm');
+const form =
+  document.getElementById('loginForm');
 
-const errorBox = document.getElementById('loginError');
+const errorBox =
+  document.getElementById('loginError');
 
-const btn = document.getElementById('loginBtn');
+const btn =
+  document.getElementById('loginBtn');
 
 
 form.addEventListener('submit', async (e) => {
@@ -152,6 +179,7 @@ form.addEventListener('submit', async (e) => {
 
 
   errorBox.classList.remove('show');
+
 
   btn.disabled = true;
 
@@ -169,91 +197,97 @@ form.addEventListener('submit', async (e) => {
         .toUpperCase();
 
 
+    const username =
+      document
+        .getElementById('username')
+        .value
+        .trim()
+        .toLowerCase();
+
+
     const password =
       document
         .getElementById('password')
         .value;
 
 
-    if (!labCode || !password) {
+    if (!labCode || !username || !password) {
 
       throw new Error(
-        'Lab Code and Password are required.'
+        'Lab Code, Username and Password are required.'
       );
 
     }
 
 
-    /*
-      IMPORTANT:
+    console.log('Login request:', {
+      labCode,
+      username
+    });
 
-      Lab login uses:
-
-      POST /api/labs/login
-
-      NOT:
-
-      /api/auth/login
-    */
 
     const data = await api(
-      '/labs/login',
+      '/auth/login',
       {
         method: 'POST',
 
         body: JSON.stringify({
           labCode,
+          username,
           password
         })
       }
     );
 
 
-    /*
-      Save the lab login session
-    */
+    console.log('Login response:', data);
+
 
     setSession(
       data.token,
-      {
-        ...data.lab,
-        role: 'lab'
-      }
+      data.user
     );
 
 
-    /*
-      Login successful
-    */
+    if (
+      data.user &&
+      data.user.role === 'superadmin'
+    ) {
 
-    window.location.href =
-      '/dashboard.html';
+      window.location.href =
+        '/admin.html';
+
+    } else {
+
+      window.location.href =
+        '/dashboard.html';
+
+    }
 
 
   } catch (err) {
 
     console.error(
-      'Lab login error:',
+      'Login error:',
       err
     );
 
 
     errorBox.textContent =
       err.message ||
-      'Login failed. Check your Lab Code and Password.';
-
+      'Login failed. Check your credentials.';
 
     errorBox.classList.add('show');
 
 
     btn.disabled = false;
 
-    btn.textContent = 'Login';
+    btn.textContent =
+      'Login';
 
   }
 
 });
-
 
 `;
 
@@ -263,6 +297,5 @@ form.addEventListener('submit', async (e) => {
     pageScript
   });
 }
-
 
 module.exports = loginPage;
