@@ -198,31 +198,15 @@ router.post(
       // It will be generated when owner approves.
       // ----------------------------------------------
 
-      const lab =
-        await Lab.create({
-
-          labName:
-            labName.trim(),
-
-          email:
-            cleanEmail,
-
-          adminName:
-            adminName.trim(),
-
-          username:
-            cleanUsername,
-
-          password:
-            hashedPassword,
-
-          labCode:
-            null,
-
-          status:
-            'pending'
-
-        });
+      const lab = await Lab.create({
+    labName: labName.trim(),
+    email: cleanEmail,
+    adminName: adminName.trim(),
+    username: cleanUsername,
+    password: hashedPassword,
+    status: 'pending'
+    // labCode omitted entirely
+});
 
 
       // ----------------------------------------------
