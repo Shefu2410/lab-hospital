@@ -5,6 +5,12 @@
  *  - default logins within that demo lab (admin / pathologist / lab-technician)
  *  - a starter test catalog for the demo lab (RFT, LFT, CBC, Lipid, Glucose)
  * Safe to re-run: it skips anything that already exists.
+ *
+ * NOTE: if you're re-running this after a previous broken run, delete any
+ * stale demo lab document first, e.g.:
+ *   db.labs.deleteOne({ email: "demo-lab@rkhcross.test" })
+ * Otherwise this script will find the old broken record and skip creating
+ * a correct one.
  */
 require('dotenv').config();
 const connectDB = require('./config/db');
@@ -14,10 +20,11 @@ const TestCatalog = require('./models/TestCatalog');
 const { generateLabCode } = require('./utils/idGenerator');
 
 const DEMO_LAB = {
-  name: 'RKH Diagnostics (Demo)',
+  labName: 'RKH Diagnostics (Demo)',
   email: 'demo-lab@rkhcross.test',
-  phone: '9999999999',
-  address: 'Rajkot, Gujarat, India',
+  adminName: 'Demo Lab Owner',
+  username: 'demo-lab-owner',   // required by Lab schema; distinct from the admin/admin123 User created below
+  password: 'demo-owner-pass1', // required by Lab schema
 };
 
 const defaultLabUsers = [
@@ -111,11 +118,18 @@ async function seed() {
   // 1. Demo lab, pre-approved so it's usable immediately
   let lab = await Lab.findOne({ email: DEMO_LAB.email });
   if (!lab) {
-    const code = await generateLabCode(DEMO_LAB.name);
-    lab = await Lab.create({ ...DEMO_LAB, code, status: 'approved', approvedAt: new Date() });
-    console.log(`Created demo lab: ${lab.name} (code: ${lab.code})`);
+    const labCode = await generateLabCode(DEMO_LAB.labName);
+    lab = await Lab.create({ ...DEMO_LAB, labCode, status: 'approved', approvedAt: new Date() });
+    console.log(`Created demo lab: ${lab.labName} (code: ${lab.labCode})`);
+  } else if (!lab.labCode) {
+    // Recover a lab that exists but never got a code assigned (e.g. from a previous broken run)
+    lab.labCode = await generateLabCode(lab.labName);
+    lab.status = 'approved';
+    lab.approvedAt = lab.approvedAt || new Date();
+    await lab.save();
+    console.log(`Repaired demo lab, assigned code: ${lab.labCode}`);
   } else {
-    console.log(`Demo lab already exists (code: ${lab.code})`);
+    console.log(`Demo lab already exists (code: ${lab.labCode})`);
   }
 
   // 2. Default users inside the demo lab
@@ -123,9 +137,9 @@ async function seed() {
     const exists = await User.findOne({ lab: lab._id, username: u.username });
     if (!exists) {
       await User.create({ ...u, lab: lab._id });
-      console.log(`Created user: ${u.username} / ${u.password} (role: ${u.role}, lab: ${lab.code})`);
+      console.log(`Created user: ${u.username} / ${u.password} (role: ${u.role}, lab: ${lab.labCode})`);
     } else {
-      console.log(`User already exists: ${u.username} (lab: ${lab.code})`);
+      console.log(`User already exists: ${u.username} (lab: ${lab.labCode})`);
     }
   }
 
@@ -134,15 +148,15 @@ async function seed() {
     const exists = await TestCatalog.findOne({ lab: lab._id, code: t.code });
     if (!exists) {
       await TestCatalog.create({ ...t, lab: lab._id });
-      console.log(`Created test panel: ${t.name} (lab: ${lab.code})`);
+      console.log(`Created test panel: ${t.name} (lab: ${lab.labCode})`);
     } else {
-      console.log(`Test panel already exists: ${t.name} (lab: ${lab.code})`);
+      console.log(`Test panel already exists: ${t.name} (lab: ${lab.labCode})`);
     }
   }
 
   console.log('\nSeeding complete.');
   console.log(`Platform admin login -> lab code: PLATFORM, username: superadmin, password: super123`);
-  console.log(`Demo lab login -> lab code: ${lab.code}, then any of admin/admin123, pathologist/path123, technician/tech123`);
+  console.log(`Demo lab login -> lab code: ${lab.labCode}, then any of admin/admin123, pathologist/path123, technician/tech123`);
 }
 
 seed().catch((err) => {
