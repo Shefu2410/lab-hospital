@@ -14,6 +14,61 @@ const router = express.Router();
 
 
 // ======================================================
+// AUTH HELPER (self-contained)
+//
+// Verifies the JWT sent by the frontend as
+// "Authorization: Bearer <token>" and requires the
+// decoded payload to have role === 'superadmin'.
+//
+// NOTE: this expects tokens minted elsewhere (e.g. your
+// existing /api/auth login route) to include a `role`
+// field in the JWT payload, same as lab login already
+// does with role: 'lab'. If you already have a shared
+// requireAuth/requireRole middleware elsewhere, swap
+// this out for that instead of keeping two copies.
+// ======================================================
+
+function requireSuperadmin(req, res, next) {
+
+  const authHeader = req.headers.authorization || '';
+  const token = authHeader.startsWith('Bearer ')
+    ? authHeader.slice(7)
+    : null;
+
+  if (!token) {
+    return res.status(401).json({
+      message: 'Authentication required.'
+    });
+  }
+
+  try {
+
+    const decoded = jwt.verify(
+      token,
+      process.env.JWT_SECRET
+    );
+
+    if (decoded.role !== 'superadmin') {
+      return res.status(403).json({
+        message: 'Superadmin access required.'
+      });
+    }
+
+    req.user = decoded;
+    next();
+
+  } catch (err) {
+
+    return res.status(401).json({
+      message: 'Invalid or expired token.'
+    });
+
+  }
+
+}
+
+
+// ======================================================
 // GENERATE LAB CODE
 // ======================================================
 
@@ -68,6 +123,75 @@ async function createUniqueLabCode() {
   return code;
 
 }
+
+
+// ======================================================
+// LIST LABS FOR SUPERADMIN "ACTING AS LAB" PICKER
+//
+// GET /api/labs
+//
+// Used by the frontend sidebar dropdown so a superadmin
+// can select which lab to act on behalf of. Only returns
+// approved labs, since acting-as-lab only makes sense for
+// labs that are actually live.
+// ======================================================
+
+router.get(
+  '/',
+  requireSuperadmin,
+  async (req, res) => {
+
+    try {
+
+      const labs =
+        await Lab.find({
+          status: 'approved'
+        })
+          .select('labName labCode email adminName')
+          .sort({ labName: 1 });
+
+
+      const result =
+        labs.map(
+          (lab) => ({
+
+            _id:
+              lab._id,
+
+            // frontend (clientScript.js) reads lab.name
+            name:
+              lab.labName,
+
+            labCode:
+              lab.labCode
+
+          })
+        );
+
+
+      return res.json(result);
+
+    }
+
+    catch (err) {
+
+      console.error(
+        'List labs error:',
+        err
+      );
+
+
+      return res.status(500).json({
+
+        message:
+          'Could not load laboratories.'
+
+      });
+
+    }
+
+  }
+);
 
 
 // ======================================================

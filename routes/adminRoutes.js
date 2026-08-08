@@ -7,8 +7,16 @@ const Admin = require('../models/Admin');
 const Lab = require('../models/Lab');
 const requireAdmin = require('../middleware/requireAdmin');
 
+// NOTE: this router is mounted in server.js as:
+//   app.use('/api/admin', adminRoutes);
+// so every path below must be RELATIVE to /api/admin.
+// Previously these were written as '/api/admin/login' etc,
+// which meant the real live route was
+// /api/admin/api/admin/login — never matching what the
+// frontend actually calls. Fixed to relative paths.
+
 // POST /api/admin/login
-router.post('/api/admin/login', async (req, res) => {
+router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
     if (!email || !password) {
@@ -39,7 +47,7 @@ router.post('/api/admin/login', async (req, res) => {
 });
 
 // GET /api/admin/labs/pending  (admin only)
-router.get('/api/admin/labs/pending', requireAdmin, async (req, res) => {
+router.get('/labs/pending', requireAdmin, async (req, res) => {
   try {
     const pending = await Lab.find({ status: 'pending' }).select('-password');
     return res.json(pending);
@@ -50,7 +58,7 @@ router.get('/api/admin/labs/pending', requireAdmin, async (req, res) => {
 });
 
 // GET /api/admin/labs  (admin only) — all labs, any status
-router.get('/api/admin/labs', requireAdmin, async (req, res) => {
+router.get('/labs', requireAdmin, async (req, res) => {
   try {
     const labs = await Lab.find().select('-password');
     return res.json(labs);
@@ -61,7 +69,7 @@ router.get('/api/admin/labs', requireAdmin, async (req, res) => {
 });
 
 // POST /api/admin/labs/:id/approve  (admin only)
-router.post('/api/admin/labs/:id/approve', requireAdmin, async (req, res) => {
+router.post('/labs/:id/approve', requireAdmin, async (req, res) => {
   try {
     const labCode = 'LAB-' + crypto.randomBytes(4).toString('hex').toUpperCase();
 
@@ -83,7 +91,7 @@ router.post('/api/admin/labs/:id/approve', requireAdmin, async (req, res) => {
 });
 
 // POST /api/admin/labs/:id/reject  (admin only)
-router.post('/api/admin/labs/:id/reject', requireAdmin, async (req, res) => {
+router.post('/labs/:id/reject', requireAdmin, async (req, res) => {
   try {
     const lab = await Lab.findByIdAndUpdate(
       req.params.id,

@@ -143,7 +143,6 @@ async function seed() {
   console.log('\nSeeding complete.');
   console.log(`Platform admin login -> lab code: PLATFORM, username: superadmin, password: super123`);
   console.log(`Demo lab login -> lab code: ${lab.code}, then any of admin/admin123, pathologist/path123, technician/tech123`);
-  process.exit(0);
 }
 
 seed().catch((err) => {
