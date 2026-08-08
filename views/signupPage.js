@@ -4,6 +4,7 @@ function signupPage() {
   const body = `
 <div class="auth-screen">
 
+  <!-- LEFT SIDE -->
   <div class="auth-visual">
 
     <div class="auth-brand">
@@ -16,21 +17,19 @@ function signupPage() {
     </div>
 
     <div class="auth-quote">
-
       <div class="big">
         Register your laboratory.
       </div>
 
       <div class="meta">
-        Create your laboratory account and submit it for
-        owner approval. Once approved, you will receive a
-        unique Lab Code and can sign in to the system.
+        Create your laboratory account and first administrator.
+        Your registration will be reviewed by the platform owner.
+        After approval, your laboratory will receive a unique Lab Code
+        which you can use to sign in.
       </div>
-
     </div>
 
     <div class="auth-readout">
-
       <div>
         <span>1</span>
         Lab registration
@@ -45,12 +44,12 @@ function signupPage() {
         <span>&#10003;</span>
         Owner approval
       </div>
-
     </div>
 
   </div>
 
 
+  <!-- RIGHT SIDE -->
   <div class="auth-form-wrap">
 
     <form class="auth-form" id="signupForm">
@@ -58,25 +57,46 @@ function signupPage() {
       <h1>Register Your Lab</h1>
 
       <p class="lead">
-        Create your laboratory account.
+        Create an account for your laboratory.
       </p>
 
-      <div class="form-error" id="signupError"></div>
+      <p class="lead">
+        Already registered?
+        <a
+          href="/index.html"
+          style="color:var(--teal-dark);font-weight:600;"
+        >
+          Sign in
+        </a>
+      </p>
 
-      <div class="form-success" id="signupSuccess"></div>
+
+      <!-- ERROR -->
+      <div
+        class="form-error"
+        id="signupError"
+        style="display:none;"
+      ></div>
 
 
-      <!-- LAB DETAILS -->
+      <!-- SUCCESS -->
+      <div
+        class="form-success"
+        id="signupSuccess"
+        style="display:none;"
+      ></div>
 
+
+      <!-- LAB INFORMATION -->
       <div class="section-title">
-        Laboratory Details
+        Laboratory Information
       </div>
 
 
       <div class="field">
 
         <label for="labName">
-          Lab Name *
+          Laboratory Name *
         </label>
 
         <input
@@ -92,7 +112,7 @@ function signupPage() {
       <div class="field">
 
         <label for="labEmail">
-          Lab Email *
+          Laboratory Email *
         </label>
 
         <input
@@ -105,41 +125,22 @@ function signupPage() {
       </div>
 
 
-      <!-- ADMIN ACCOUNT -->
-
+      <!-- ADMIN INFORMATION -->
       <div class="section-title">
-        Admin Account
-      </div>
-
-
-      <div class="field">
-
-        <label for="username">
-          Username *
-        </label>
-
-        <input
-          type="text"
-          id="username"
-          placeholder="e.g. admin"
-          autocomplete="username"
-          required
-          minlength="3"
-        />
-
+        Administrator Account
       </div>
 
 
       <div class="field">
 
         <label for="adminName">
-          Admin Name *
+          Administrator Name *
         </label>
 
         <input
           type="text"
           id="adminName"
-          placeholder="e.g. John Patel"
+          placeholder="Enter administrator name"
           required
         />
 
@@ -148,17 +149,39 @@ function signupPage() {
 
       <div class="field">
 
-        <label for="password">
+        <label for="adminUsername">
+          Username *
+        </label>
+
+        <input
+          type="text"
+          id="adminUsername"
+          placeholder="e.g. admin"
+          autocomplete="username"
+          required
+          minlength="3"
+        />
+
+        <small>
+          This username will be used to sign in to your laboratory.
+        </small>
+
+      </div>
+
+
+      <div class="field">
+
+        <label for="adminPassword">
           Password *
         </label>
 
         <input
           type="password"
-          id="password"
-          placeholder="Minimum 6 characters"
+          id="adminPassword"
+          placeholder="Create a password"
           autocomplete="new-password"
-          minlength="6"
           required
+          minlength="6"
         />
 
       </div>
@@ -173,11 +196,30 @@ function signupPage() {
         <input
           type="password"
           id="confirmPassword"
-          placeholder="Re-enter password"
+          placeholder="Confirm your password"
           autocomplete="new-password"
-          minlength="6"
           required
+          minlength="6"
         />
+
+      </div>
+
+
+      <!-- INFORMATION -->
+      <div class="signup-info">
+
+        <strong>Important</strong>
+
+        <p>
+          After registration, your laboratory will remain
+          <strong>Pending</strong> until the platform owner approves it.
+        </p>
+
+        <p>
+          Once approved, a unique Lab Code will be assigned to your
+          laboratory. You will use the Lab Code, username and password
+          to sign in.
+        </p>
 
       </div>
 
@@ -187,24 +229,8 @@ function signupPage() {
         class="btn btn-primary btn-block"
         id="signupBtn"
       >
-        Register Lab
+        Register Laboratory
       </button>
-
-
-      <p
-        class="lead"
-        style="margin-top:16px;text-align:center;"
-      >
-        Already registered?
-
-        <a
-          href="/index.html"
-          style="color:var(--teal-dark);font-weight:600;"
-        >
-          Sign in
-        </a>
-
-      </p>
 
     </form>
 
@@ -216,11 +242,30 @@ function signupPage() {
 
   const extraStyle = `
 
+.signup-info {
+  background: #f0f8f7;
+  border: 1px solid #d5ebe8;
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin: 16px 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #345;
+}
+
+.signup-info strong {
+  color: var(--teal-dark);
+}
+
+.signup-info p {
+  margin: 6px 0;
+}
+
 .form-success {
   display: none;
   background: #e3f6ec;
-  color: #087f5b;
-  padding: 16px;
+  color: #087443;
+  padding: 14px 16px;
   border-radius: 10px;
   font-size: 14px;
   margin-bottom: 16px;
@@ -239,10 +284,22 @@ function signupPage() {
   display: block;
 }
 
+.field small {
+  display: block;
+  margin-top: 5px;
+  font-size: 12px;
+  color: #718096;
+}
+
 `;
 
 
   const pageScript = `
+
+if (getToken()) {
+  window.location.href = '/dashboard.html';
+}
+
 
 const form = document.getElementById('signupForm');
 
@@ -256,34 +313,61 @@ const btn =
   document.getElementById('signupBtn');
 
 
-form.addEventListener('submit', async function(e) {
+form.addEventListener('submit', async (e) => {
 
   e.preventDefault();
 
 
+  errorBox.textContent = '';
   errorBox.classList.remove('show');
+
+  successBox.innerHTML = '';
   successBox.classList.remove('show');
 
 
   const labName =
-    document.getElementById('labName').value.trim();
+    document.getElementById('labName')
+      .value
+      .trim();
 
-  const email =
-    document.getElementById('labEmail').value.trim();
-
-  const username =
-    document.getElementById('username').value.trim();
+  const labEmail =
+    document.getElementById('labEmail')
+      .value
+      .trim();
 
   const adminName =
-    document.getElementById('adminName').value.trim();
+    document.getElementById('adminName')
+      .value
+      .trim();
+
+  const adminUsername =
+    document.getElementById('adminUsername')
+      .value
+      .trim()
+      .toLowerCase();
 
   const password =
-    document.getElementById('password').value;
+    document.getElementById('adminPassword')
+      .value;
 
   const confirmPassword =
-    document.getElementById('confirmPassword').value;
+    document.getElementById('confirmPassword')
+      .value;
 
 
+  // Password validation
+  if (password.length < 6) {
+
+    errorBox.textContent =
+      'Password must contain at least 6 characters.';
+
+    errorBox.classList.add('show');
+
+    return;
+  }
+
+
+  // Confirm password
   if (password !== confirmPassword) {
 
     errorBox.textContent =
@@ -295,10 +379,11 @@ form.addEventListener('submit', async function(e) {
   }
 
 
-  if (password.length < 6) {
+  // Username validation
+  if (adminUsername.length < 3) {
 
     errorBox.textContent =
-      'Password must contain at least 6 characters.';
+      'Username must contain at least 3 characters.';
 
     errorBox.classList.add('show');
 
@@ -314,55 +399,92 @@ form.addEventListener('submit', async function(e) {
 
   try {
 
+    const payload = {
+
+      labName: labName,
+
+      email: labEmail,
+
+      adminName: adminName,
+
+      username: adminUsername,
+
+      password: password
+
+    };
+
+
+    console.log('Lab Registration:', payload);
+
+
     const data = await api(
       '/labs/register',
       {
         method: 'POST',
 
-        body: JSON.stringify({
-
-          labName,
-          email,
-          username,
-          adminName,
-          password
-
-        })
+        body: JSON.stringify(payload)
       }
     );
 
 
-    form.style.display = 'none';
+    form.reset();
 
 
-    successBox.innerHTML =
+    let message =
 
-      '<strong>Registration submitted successfully.</strong>' +
+      '<strong>Registration submitted successfully.</strong><br><br>' +
 
-      '<br><br>' +
-
-      'Your laboratory has been registered successfully and is ' +
-      'currently waiting for owner approval.' +
+      'Your laboratory is currently <strong>pending approval</strong>.' +
 
       '<br><br>' +
 
-      'After approval, your unique Lab Code will be generated. ' +
-      'You can then sign in using your Lab Code, username and password.' +
+      'The platform owner will review your registration. ' +
+
+      'After approval, you will receive your unique Lab Code.' +
+
+      '<br><br>';
+
+
+    if (data.labCode) {
+
+      message +=
+
+        '<strong>Your Lab Code:</strong> ' +
+
+        '<span style="font-size:18px;font-weight:700;">' +
+
+        data.labCode +
+
+        '</span><br><br>';
+
+    }
+
+
+    message +=
+
+      'You can sign in after your laboratory has been approved.' +
 
       '<br><br>' +
 
       '<a href="/index.html" ' +
-      'style="color:var(--teal-dark);font-weight:600;">' +
+
+      'style="color:var(--teal-dark);font-weight:700;">' +
+
       'Go to Sign In' +
+
       '</a>';
 
+
+    form.style.display = 'none';
+
+    successBox.innerHTML = message;
 
     successBox.classList.add('show');
 
 
   } catch (err) {
 
-    console.error('Signup error:', err);
+    console.error('Registration error:', err);
 
 
     errorBox.textContent =
@@ -375,7 +497,7 @@ form.addEventListener('submit', async function(e) {
     btn.disabled = false;
 
     btn.textContent =
-      'Register Lab';
+      'Register Laboratory';
 
   }
 
@@ -384,7 +506,7 @@ form.addEventListener('submit', async function(e) {
 `;
 
   return renderPage({
-    title: 'Register Lab',
+    title: 'Register Laboratory',
     body,
     pageScript,
     extraStyle

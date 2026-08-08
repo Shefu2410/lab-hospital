@@ -2,10 +2,6 @@ const mongoose = require('mongoose');
 
 const labSchema = new mongoose.Schema(
   {
-    // --------------------------------------------------
-    // LAB DETAILS
-    // --------------------------------------------------
-
     labName: {
       type: String,
       required: true,
@@ -20,10 +16,6 @@ const labSchema = new mongoose.Schema(
       trim: true
     },
 
-    // --------------------------------------------------
-    // FIRST ADMIN DETAILS
-    // --------------------------------------------------
-
     adminName: {
       type: String,
       required: true,
@@ -33,9 +25,8 @@ const labSchema = new mongoose.Schema(
     username: {
       type: String,
       required: true,
-      unique: true,
-      lowercase: true,
-      trim: true
+      trim: true,
+      lowercase: true
     },
 
     password: {
@@ -43,67 +34,37 @@ const labSchema = new mongoose.Schema(
       required: true
     },
 
-    // --------------------------------------------------
-    // LAB CODE
-    //
-    // This is generated when the owner approves
-    // the laboratory.
-    // --------------------------------------------------
-
     labCode: {
       type: String,
       unique: true,
       sparse: true,
-      default: null,
       uppercase: true,
-      trim: true
+      trim: true,
+      default: null
     },
-
-    // --------------------------------------------------
-    // LAB STATUS
-    // --------------------------------------------------
 
     status: {
       type: String,
-
       enum: [
         'pending',
         'approved',
         'rejected',
         'revoked'
       ],
-
       default: 'pending'
     }
   },
-
   {
     timestamps: true
   }
 );
 
-
-// --------------------------------------------------
-// INDEXES
-// --------------------------------------------------
-
-labSchema.index(
-  { email: 1 },
-  { unique: true }
-);
-
+// Username should be unique inside a lab.
+// Since each Lab currently has one registration/admin username,
+// this prevents duplicate usernames globally at registration level.
 labSchema.index(
   { username: 1 },
   { unique: true }
 );
-
-labSchema.index(
-  { labCode: 1 },
-  {
-    unique: true,
-    sparse: true
-  }
-);
-
 
 module.exports = mongoose.model('Lab', labSchema);

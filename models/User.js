@@ -30,12 +30,31 @@ userSchema.index({ lab: 1, username: 1 }, { unique: true });
 
 // Hash password whenever it is set/changed
 userSchema.pre('save', async function (next) {
-  if (!this.isModified('password')) return next();
+
+  if (!this.isModified('password')) {
+    return next();
+  }
+
+  // If password is already bcrypt hashed,
+  // don't hash it again.
+  if (
+    this.password.startsWith('$2a$') ||
+    this.password.startsWith('$2b$') ||
+    this.password.startsWith('$2y$')
+  ) {
+    return next();
+  }
+
   const salt = await bcrypt.genSalt(10);
-  this.password = await bcrypt.hash(this.password, salt);
+
+  this.password =
+    await bcrypt.hash(
+      this.password,
+      salt
+    );
+
   next();
 });
-
 userSchema.methods.comparePassword = function (candidate) {
   return bcrypt.compare(candidate, this.password);
 };

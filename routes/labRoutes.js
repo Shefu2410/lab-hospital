@@ -3,6 +3,7 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 
 const Lab = require('../models/Lab');
+const User = require('../models/User');
 
 const { requireOwnerKey } =
   require('../middleware/ownerAuth');
@@ -607,40 +608,24 @@ router.put(
 
     try {
 
-      const lab =
-        await Lab.findById(
-          req.params.id
-        );
-
+      const lab = await Lab.findById(req.params.id);
 
       if (!lab) {
-
         return res.status(404).json({
-
-          message:
-            'Lab not found.'
-
+          message: 'Lab not found.'
         });
-
       }
 
 
       // ----------------------------------------------
-      // Already approved
+      // ALREADY APPROVED
       // ----------------------------------------------
 
-      if (
-        lab.status === 'approved'
-      ) {
+      if (lab.status === 'approved') {
 
         return res.json({
-
-          message:
-            'Lab is already approved.',
-
-          labCode:
-            lab.labCode
-
+          message: 'Lab is already approved.',
+          labCode: lab.labCode
         });
 
       }
@@ -655,68 +640,90 @@ router.put(
         await createUniqueLabCode();
 
 
-      lab.labCode =
-        labCode;
+      // ----------------------------------------------
+      // CHECK WHETHER ADMIN USER ALREADY EXISTS
+      // ----------------------------------------------
+
+      let user = await User.findOne({
+        lab: lab._id,
+        username: lab.username
+      });
 
 
-      lab.status =
-        'approved';
+      // ----------------------------------------------
+      // CREATE ADMIN USER
+      // ----------------------------------------------
 
+      if (!user) {
+
+        user = await User.create({
+          name: lab.adminName,
+          username: lab.username,
+
+          // IMPORTANT:
+          // lab.password is already bcrypt hashed.
+          password: lab.password,
+
+          role: 'admin',
+
+          lab: lab._id
+        });
+
+      }
+
+
+      // ----------------------------------------------
+      // APPROVE LAB
+      // ----------------------------------------------
+
+      lab.labCode = labCode;
+      lab.status = 'approved';
 
       await lab.save();
 
+
+      // ----------------------------------------------
+      // RESPONSE
+      // ----------------------------------------------
 
       return res.json({
 
         message:
           'Laboratory approved successfully.',
 
-        labCode:
-          lab.labCode,
+        labCode: lab.labCode,
 
         lab: {
+          id: lab._id,
+          labName: lab.labName,
+          email: lab.email,
+          adminName: lab.adminName,
+          username: lab.username,
+          labCode: lab.labCode,
+          status: lab.status
+        },
 
-          id:
-            lab._id,
-
-          labName:
-            lab.labName,
-
-          email:
-            lab.email,
-
-          username:
-            lab.username,
-
-          labCode:
-            lab.labCode,
-
-          status:
-            lab.status
-
+        user: {
+          id: user._id,
+          username: user.username,
+          role: user.role
         }
 
       });
 
-    }
-
-    catch (err) {
+    } catch (err) {
 
       console.error(
         'Approve lab error:',
         err
       );
 
-
       return res.status(500).json({
-
         message:
           'Could not approve laboratory.'
-
       });
 
     }
-
   }
 );
 
