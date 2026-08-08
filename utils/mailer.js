@@ -10,13 +10,18 @@ const nodemailer = require('nodemailer');
 // ======================================================
 const transporter = nodemailer.createTransport({
     host: 'smtp.gmail.com',
-    port: 465,
-    secure: true,          // true for port 465, false for 587
+    port: 587,
+    secure: false,          // false for 587 (STARTTLS), true for 465
     auth: {
         user: process.env.GMAIL_USER,
         pass: process.env.GMAIL_APP_PASS
     },
-    family: 4               // force IPv4, avoids ENETUNREACH on IPv6-only routes
+    family: 4,               // force IPv4, avoids ENETUNREACH on IPv6-only routes
+
+    // Fail fast instead of hanging on a flaky network path.
+    connectionTimeout: 10000,   // time to establish the TCP connection
+    greetingTimeout: 10000,     // time to receive the SMTP greeting after connecting
+    socketTimeout: 10000        // time before an idle connection is killed
 });
 
 
