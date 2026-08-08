@@ -1,28 +1,6 @@
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 
-
-// How to get a Gmail App Password:
-//   1. Turn on 2-Step Verification on the Google account:
-//      https://myaccount.google.com/security
-//   2. Go to https://myaccount.google.com/apppasswords
-//   3. Create an app password for "Mail" and copy the
-//      16-character code (no spaces) into GMAIL_APP_PASS.
-// ======================================================
-const transporter = nodemailer.createTransport({
-    host: 'smtp.gmail.com',
-    port: 587,
-    secure: false,          // false for 587 (STARTTLS), true for 465
-    auth: {
-        user: process.env.GMAIL_USER,
-        pass: process.env.GMAIL_APP_PASS
-    },
-    family: 4,               // force IPv4, avoids ENETUNREACH on IPv6-only routes
-
-    // Fail fast instead of hanging on a flaky network path.
-    connectionTimeout: 10000,   // time to establish the TCP connection
-    greetingTimeout: 10000,     // time to receive the SMTP greeting after connecting
-    socketTimeout: 10000        // time before an idle connection is killed
-});
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 
 // ======================================================
@@ -30,6 +8,9 @@ const transporter = nodemailer.createTransport({
 //
 // Fire-and-forget style: caller should NOT let a failed
 // email block or fail the registration request itself.
+//
+// Uses Resend's HTTPS API instead of raw SMTP, since
+// Render's outbound SMTP connections were timing out.
 // ======================================================
 
 async function sendNewLabRegisteredEmail(lab) {
@@ -42,6 +23,16 @@ async function sendNewLabRegisteredEmail(lab) {
 
     console.error(
       'sendNewLabRegisteredEmail: OWNER_EMAIL / GMAIL_USER not set, skipping email.'
+    );
+
+    return;
+
+  }
+
+  if (!process.env.RESEND_API_KEY) {
+
+    console.error(
+      'sendNewLabRegisteredEmail: RESEND_API_KEY not set, skipping email.'
     );
 
     return;
@@ -86,12 +77,22 @@ async function sendNewLabRegisteredEmail(lab) {
 
   try {
 
-    await transporter.sendMail({
-      from: `"Lab System" <${process.env.GMAIL_USER}>`,
+    const { data, error } = await resend.emails.send({
+      // While testing on a free Resend account (no verified domain yet),
+      // this MUST stay exactly as below — Resend only allows sending
+      // from onboarding@resend.dev until you verify your own domain.
+      from: 'Lab System <onboarding@resend.dev>',
       to: ownerEmail,
       subject: `New Lab Registration: ${lab.labName}`,
       html
     });
+
+    if (error) {
+      console.error(
+        'Failed to send new-lab-registered email:',
+        error
+      );
+    }
 
   } catch (err) {
 
