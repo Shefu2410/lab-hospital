@@ -1,4 +1,5 @@
 const express = require('express');
+const mongoose = require('mongoose');
 const Lab = require('../models/Lab');
 const User = require('../models/User');
 const { protect, requireRole } = require('../middleware/auth');
@@ -12,42 +13,74 @@ const router = express.Router();
 // Creates the Lab (status = 'pending') and its first admin user. The lab
 // cannot log in until the owner approves it from /owner.html - see the
 // status check in routes/authRoutes.js.
+//
+// Both writes (Lab + User) happen inside a Mongo transaction so a failure
+// creating the User (e.g. duplicate username) can never leave an orphaned
+// Lab document behind, and vice versa. Duplicate email / username are also
+// checked explicitly up front so we can return clear, specific messages
+// instead of relying on a raw MongoDB E11000 duplicate-key error.
 router.post('/register', async (req, res, next) => {
-  try {
-    const { labName, labEmail, labPhone, labAddress, adminName, adminUsername, adminPassword } = req.body;
+  const { labName, labEmail, labPhone, labAddress, adminName, adminUsername, adminPassword } = req.body;
 
-    if (!labName || !labEmail || !adminName || !adminUsername || !adminPassword) {
-      return res.status(400).json({
-        message: 'labName, labEmail, adminName, adminUsername and adminPassword are required.',
-      });
+  if (!labName || !labEmail || !adminName || !adminUsername || !adminPassword) {
+    return res.status(400).json({
+      message: 'labName, labEmail, adminName, adminUsername and adminPassword are required.',
+    });
+  }
+
+  const normalizedEmail = labEmail.trim().toLowerCase();
+  const normalizedUsername = adminUsername.trim().toLowerCase();
+
+  const session = await mongoose.startSession();
+
+  try {
+    session.startTransaction();
+
+    const existingLab = await Lab.findOne({ email: normalizedEmail }).session(session);
+    if (existingLab) {
+      await session.abortTransaction();
+      return res.status(409).json({ message: 'A lab with that email has already registered.' });
     }
 
-    const existingLab = await Lab.findOne({ email: labEmail.trim().toLowerCase() });
-    if (existingLab) {
-      return res.status(409).json({ message: 'A lab with that email has already registered.' });
+    const existingUser = await User.findOne({ username: normalizedUsername }).session(session);
+    if (existingUser) {
+      await session.abortTransaction();
+      return res.status(409).json({ message: 'That username is already registered.' });
     }
 
     const code = await generateLabCode(labName);
 
-    const lab = await Lab.create({
-      code,
-      name: labName.trim(),
-      email: labEmail.trim().toLowerCase(),
-      phone: labPhone || '',
-      address: labAddress || '',
-      status: 'pending',
-      // Kept only so the owner can view/hand over the initial password from
-      // the Owner page - see utils/secretCrypto.js for why this is reversible.
-      adminPasswordEnc: encryptSecret(adminPassword),
-    });
+    const [lab] = await Lab.create(
+      [
+        {
+          code,
+          name: labName.trim(),
+          email: normalizedEmail,
+          phone: labPhone || '',
+          address: labAddress || '',
+          status: 'pending',
+          // Kept only so the owner can view/hand over the initial password from
+          // the Owner page - see utils/secretCrypto.js for why this is reversible.
+          adminPasswordEnc: encryptSecret(adminPassword),
+        },
+      ],
+      { session }
+    );
 
-    const admin = await User.create({
-      name: adminName.trim(),
-      username: adminUsername.trim().toLowerCase(),
-      password: adminPassword,
-      role: 'admin',
-      lab: lab._id,
-    });
+    const [admin] = await User.create(
+      [
+        {
+          name: adminName.trim(),
+          username: normalizedUsername,
+          password: adminPassword,
+          role: 'admin',
+          lab: lab._id,
+        },
+      ],
+      { session }
+    );
+
+    await session.commitTransaction();
 
     // Fire-and-forget - registration should succeed even if email sending fails.
     notifyOwnerNewLabPending(lab).catch(() => {});
@@ -58,7 +91,10 @@ router.post('/register', async (req, res, next) => {
       admin: admin.toSafeObject(),
     });
   } catch (err) {
+    await session.abortTransaction();
     next(err);
+  } finally {
+    session.endSession();
   }
 });
 
