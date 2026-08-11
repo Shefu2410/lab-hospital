@@ -1,21 +1,36 @@
 const nodemailer = require('nodemailer');
+const fs = require('fs');
+const path = require('path');
 
-// ============================================================
-// REQUIRED ENV VARS (add these in Render -> Environment tab)
-// ============================================================
-//   EMAIL_USER          - the Gmail address to send FROM
-//   EMAIL_APP_PASSWORD  - a Gmail "App Password" (NOT your normal password)
-//                          Create one at: https://myaccount.google.com/apppasswords
-//                          (requires 2-Step Verification to be turned ON first)
-//   OWNER_EMAIL          - the address that should RECEIVE
-//                          "new lab pending approval" notifications
-//                          (can be the same address as EMAIL_USER)
+// Sends the two emails the approval workflow needs:
+//  - to the OWNER when a new lab registers and needs approval
+//  - to the LAB when the owner approves / rejects / suspends them
 //
-// If EMAIL_USER / EMAIL_APP_PASSWORD are missing, mail sending is silently
-// skipped (logged to console only) so the rest of the app keeps working
-// without email configured. This is intentional - registration should never
-// fail just because email isn't set up yet.
-// ============================================================
+// Configure in .env:
+//   EMAIL_USER            - the Gmail address to send from
+//   EMAIL_APP_PASSWORD    - a Gmail "App Password" (NOT your normal Gmail password -
+//                            create one at https://myaccount.google.com/apppasswords,
+//                            requires 2-Step Verification to be on)
+//   OWNER_EMAIL            - where "new lab pending approval" emails go
+//
+// If these are not set, mail sending is silently skipped (logged to console)
+// so the rest of the app keeps working without email configured.
+//
+// Every send attempt (success or failure) is also appended to mail-log.txt
+// in the project root, so you can check what happened without needing to
+// watch the terminal at the exact moment a registration happens.
+
+const LOG_FILE = path.join(__dirname, '..', 'mail-log.txt');
+
+function logToFile(line) {
+  const stamped = `[${new Date().toISOString()}] ${line}\n`;
+  try {
+    fs.appendFileSync(LOG_FILE, stamped);
+  } catch (e) {
+    // if even file logging fails, at least still show it in the console
+    console.error('[mailer] Could not write to mail-log.txt:', e.message);
+  }
+}
 
 let transporter = null;
 
@@ -23,39 +38,48 @@ function getTransporter() {
   if (transporter) return transporter;
   if (!process.env.EMAIL_USER || !process.env.EMAIL_APP_PASSWORD) return null;
 
+  // Explicit host/port instead of `service: 'gmail'` - more reliable, and
+  // avoids some quirks newer nodemailer versions have with the shorthand.
   transporter = nodemailer.createTransport({
-    service: 'gmail',
+    host: 'smtp.gmail.com',
+    port: 465,
+    secure: true, // true for port 465, false for 587
     auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_APP_PASSWORD,
+      user: process.env.EMAIL_USER.trim(),
+      pass: process.env.EMAIL_APP_PASSWORD.trim().replace(/\s+/g, ''), // app passwords are sometimes copied with spaces
     },
   });
   return transporter;
 }
 
-// Runs once, as soon as this file is first required (i.e. at server startup),
-// so you see immediately in the server console whether email is configured -
-// no need to run a separate test script.
 (function logConfigStatusOnBoot() {
   if (!process.env.EMAIL_USER || !process.env.EMAIL_APP_PASSWORD) {
-    console.log('[mailer] EMAIL_USER / EMAIL_APP_PASSWORD not set - email notifications are DISABLED.');
+    const msg = '[mailer] EMAIL_USER / EMAIL_APP_PASSWORD not set - email notifications are DISABLED.';
+    console.log(msg);
+    logToFile(msg);
     return;
   }
   if (!process.env.OWNER_EMAIL) {
-    console.log('[mailer] EMAIL_USER/EMAIL_APP_PASSWORD are set, but OWNER_EMAIL is missing - "new lab" emails will be skipped.');
+    const msg = '[mailer] EMAIL_USER/EMAIL_APP_PASSWORD are set, but OWNER_EMAIL is missing - "new lab" emails will be skipped.';
+    console.log(msg);
+    logToFile(msg);
   } else {
-    console.log(`[mailer] Configured. Sending as ${process.env.EMAIL_USER}, owner notifications go to ${process.env.OWNER_EMAIL}.`);
+    const msg = `[mailer] Configured. Sending as ${process.env.EMAIL_USER}, owner notifications go to ${process.env.OWNER_EMAIL}.`;
+    console.log(msg);
+    logToFile(msg);
   }
 
-  // Verifies the SMTP login actually works (catches a bad/stale app password
-  // immediately at boot, instead of only finding out when a real email is sent).
   const t = getTransporter();
   if (t) {
     t.verify((err) => {
       if (err) {
-        console.error('[mailer] SMTP verification FAILED - check EMAIL_USER/EMAIL_APP_PASSWORD:', err.message);
+        const msg = '[mailer] SMTP verification FAILED: ' + err.message;
+        console.error(msg);
+        logToFile(msg);
       } else {
-        console.log('[mailer] SMTP connection verified OK.');
+        const msg = '[mailer] SMTP connection verified OK.';
+        console.log(msg);
+        logToFile(msg);
       }
     });
   }
@@ -64,22 +88,29 @@ function getTransporter() {
 async function sendMail({ to, subject, text }) {
   const t = getTransporter();
   if (!t) {
-    console.log(`[mailer] Skipped (EMAIL_USER/EMAIL_APP_PASSWORD not set in .env). Would have sent to ${to}: ${subject}`);
+    const msg = `[mailer] Skipped (EMAIL_USER/EMAIL_APP_PASSWORD not set in .env). Would have sent to ${to}: ${subject}`;
+    console.log(msg);
+    logToFile(msg);
     return;
   }
   try {
     const info = await t.sendMail({ from: `"RKH LIMS" <${process.env.EMAIL_USER}>`, to, subject, text });
-    console.log(`[mailer] Sent "${subject}" to ${to} (messageId: ${info.messageId})`);
+    const msg = `[mailer] SENT "${subject}" to ${to} | messageId: ${info.messageId} | response: ${info.response}`;
+    console.log(msg);
+    logToFile(msg);
   } catch (err) {
-    // Never let a mail failure break an API request - just log it.
-    console.error('[mailer] Failed to send email:', err.message);
+    const msg = `[mailer] FAILED to send "${subject}" to ${to}: ${err.message}`;
+    console.error(msg);
+    logToFile(msg);
   }
 }
 
 function notifyOwnerNewLabPending(lab) {
   const ownerEmail = process.env.OWNER_EMAIL;
   if (!ownerEmail) {
-    console.log('[mailer] OWNER_EMAIL not set - skipping new-lab-pending notification.');
+    const msg = '[mailer] OWNER_EMAIL not set - skipping new-lab-pending notification.';
+    console.log(msg);
+    logToFile(msg);
     return Promise.resolve();
   }
   return sendMail({
