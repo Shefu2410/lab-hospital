@@ -373,23 +373,10 @@ function renderPrintArea(fields) {
 
   document.getElementById('printArea').innerHTML = \`
     <div style="font-family: Arial, sans-serif; padding: 30px;">
-      <div style="display:flex; justify-content:space-between; border-bottom:2px solid #0c7c7c; padding-bottom:12px; margin-bottom:16px;">
-        <div>
-          <h2 style="margin:0;">RKH LIMS</h2>
-          <div>Hospital &amp; AI Lab Suite</div>
-        </div>
-        <div style="text-align:right;">
-          <div><b>Report:</b> \${report.reportId}</div>
-          <div><b>Status:</b> \${report.status}</div>
-        </div>
-      </div>
       <div style="margin-bottom:16px;">
         \${fields.map(printHeaderFieldHtml).join('')}
       </div>
       \${testTables}
-      <div style="margin-top:36px; padding-top:10px; border-top:1px solid #ccc; text-align:center; font-size:11px; color:#8a8a8a;">
-        Software by RKH LIMS Hospital &amp; AI Lab Suite
-      </div>
     </div>
   \`;
 }

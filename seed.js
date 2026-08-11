@@ -101,14 +101,23 @@ async function seed() {
     // should wait for the Owner Console.
     lab = await Lab.create({ ...DEMO_LAB, code, status: 'approved', approvedAt: new Date() });
     console.log(`Created demo lab: ${lab.name} (code: ${lab.code}, status: approved)`);
-  } else if (lab.status !== 'approved') {
+  } else {
+  // Existing demo lab — make sure it has a lab code
+  if (!lab.code) {
+    lab.code = await generateLabCode(DEMO_LAB.name);
+    console.log(`Generated missing lab code: ${lab.code}`);
+  }
+
+  // Make sure demo lab is approved
+  if (lab.status !== 'approved') {
     lab.status = 'approved';
     lab.approvedAt = new Date();
-    await lab.save();
-    console.log(`Demo lab already existed but wasn't approved - fixed (code: ${lab.code})`);
-  } else {
-    console.log(`Demo lab already exists (code: ${lab.code})`);
   }
+
+  await lab.save();
+
+  console.log(`Demo lab ready: ${lab.name} (code: ${lab.code}, status: ${lab.status})`);
+}
 
   // 2. Default users inside the demo lab
   for (const u of defaultLabUsers) {
