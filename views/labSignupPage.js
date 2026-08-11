@@ -350,10 +350,10 @@ function signupPage() {
 
       const payload = {
         labName: labName,
-        email: email.toLowerCase(),
+        labEmail: email.toLowerCase(),
         adminName: adminName,
-        username: username.toLowerCase(),
-        password: password
+        adminUsername: username.toLowerCase(),
+        adminPassword: password
       };
 
 
