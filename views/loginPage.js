@@ -40,7 +40,7 @@ function loginPage() {
         <input type="password" id="password" autocomplete="current-password" placeholder="••••••••" required />
       </div>
       <button type="submit" class="btn btn-primary btn-block" id="loginBtn">Login</button>
-      
+      <p class="lead" style="margin-top:14px;">New lab? <a href="/lab-signup.html" style="color:var(--teal);font-weight:600;">Register here</a></p>
     </form>
   </div>
 </div>`;

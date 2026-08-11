@@ -127,5 +127,6 @@ tr.clickable:hover{background:#f8fafb;}
 .auth-form .lead{color:var(--ink-soft);font-size:13.5px;margin-bottom:20px;}
 .form-error{display:none;background:#fde3e3;color:var(--danger);padding:10px 12px;border-radius:8px;font-size:13px;margin-bottom:14px;}
 .form-error.show{display:block;}
+.form-success{background:#e2f6ec;color:#1f9d6b;padding:10px 12px;border-radius:8px;font-size:13px;margin-bottom:14px;}
 .demo-creds{margin-top:18px;font-size:12px;color:var(--ink-soft);background:#f4f6f7;border-radius:8px;padding:12px;line-height:1.7;}
 `;

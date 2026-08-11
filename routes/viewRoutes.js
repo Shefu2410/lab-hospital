@@ -6,6 +6,7 @@ const catalogPage = require('../views/catalogPage');
 const resultsPage = require('../views/resultsPage');
 const ownerPage = require('../views/ownerPage');
 const ownerLoginPage = require('../views/ownerLoginPage');
+const labSignupPage = require('../views/labSignupPage');
 
 const router = express.Router();
 
@@ -19,6 +20,7 @@ router.get('/dashboard.html', send(dashboardPage));
 router.get('/registration.html', send(registrationPage));
 router.get('/catalog.html', send(catalogPage));
 router.get('/results.html', send(resultsPage));
+router.get('/lab-signup.html', send(labSignupPage));
 
 // Platform owner - separate login + dashboard, not part of any lab.
 router.get('/owner-login.html', send(ownerLoginPage));

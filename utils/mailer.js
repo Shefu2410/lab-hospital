@@ -48,7 +48,7 @@ function notifyOwnerNewLabPending(lab) {
   const ownerEmail = process.env.OWNER_EMAIL;
   if (!ownerEmail) {
     console.log('[mailer] OWNER_EMAIL not set - skipping new-lab-pending notification.');
-    return;
+    return Promise.resolve();
   }
   return sendMail({
     to: ownerEmail,
