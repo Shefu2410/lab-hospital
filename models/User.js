@@ -46,4 +46,36 @@ userSchema.methods.toSafeObject = function () {
   };
 };
 
-module.exports = mongoose.model('User', userSchema);
+const User = mongoose.model('User', userSchema);
+
+// --- Auto-fix: remove any stale standalone unique index on "username" ---
+// An earlier version of this schema may have had `unique: true` directly
+// on the `username` field. Mongoose does not drop old indexes when a
+// schema changes, so MongoDB can still be enforcing a global unique
+// constraint on username across ALL labs, even though the schema above
+// only wants uniqueness scoped to { lab, username }. This runs once,
+// automatically, whenever the app connects - no manual script needed.
+mongoose.connection.once('open', async () => {
+  try {
+    const indexes = await User.collection.indexes();
+    const staleIndex = indexes.find(
+      (idx) =>
+        idx.unique === true &&
+        Object.keys(idx.key).length === 1 &&
+        Object.keys(idx.key)[0] === 'username'
+    );
+
+    if (staleIndex) {
+      await User.collection.dropIndex(staleIndex.name);
+      console.log(`[User model] Dropped stale unique index "${staleIndex.name}" on username.`);
+    }
+
+    // Ensure the correct compound index exists.
+    await User.collection.createIndex({ lab: 1, username: 1 }, { unique: true });
+  } catch (err) {
+    // Non-fatal - log it but don't crash the app on startup.
+    console.error('[User model] Index sync check failed:', err.message);
+  }
+});
+
+module.exports = User;
