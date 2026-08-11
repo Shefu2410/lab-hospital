@@ -30,6 +30,34 @@ function getTransporter() {
   return transporter;
 }
 
+// Runs once, as soon as this file is first required (i.e. at server startup),
+// so you see immediately in the server console whether email is configured -
+// no need to run a separate test script.
+(function logConfigStatusOnBoot() {
+  if (!process.env.EMAIL_USER || !process.env.EMAIL_APP_PASSWORD) {
+    console.log('[mailer] EMAIL_USER / EMAIL_APP_PASSWORD not set - email notifications are DISABLED.');
+    return;
+  }
+  if (!process.env.OWNER_EMAIL) {
+    console.log('[mailer] EMAIL_USER/EMAIL_APP_PASSWORD are set, but OWNER_EMAIL is missing - "new lab" emails will be skipped.');
+  } else {
+    console.log(`[mailer] Configured. Sending as ${process.env.EMAIL_USER}, owner notifications go to ${process.env.OWNER_EMAIL}.`);
+  }
+
+  // Verifies the SMTP login actually works (catches a bad/stale app password
+  // immediately at boot, instead of only finding out when a real email is sent).
+  const t = getTransporter();
+  if (t) {
+    t.verify((err) => {
+      if (err) {
+        console.error('[mailer] SMTP verification FAILED - check EMAIL_USER/EMAIL_APP_PASSWORD:', err.message);
+      } else {
+        console.log('[mailer] SMTP connection verified OK.');
+      }
+    });
+  }
+})();
+
 async function sendMail({ to, subject, text }) {
   const t = getTransporter();
   if (!t) {
@@ -37,7 +65,8 @@ async function sendMail({ to, subject, text }) {
     return;
   }
   try {
-    await t.sendMail({ from: `"RKH LIMS" <${process.env.EMAIL_USER}>`, to, subject, text });
+    const info = await t.sendMail({ from: `"RKH LIMS" <${process.env.EMAIL_USER}>`, to, subject, text });
+    console.log(`[mailer] Sent "${subject}" to ${to} (messageId: ${info.messageId})`);
   } catch (err) {
     // Never let a mail failure break an API request - just log it.
     console.error('[mailer] Failed to send email:', err.message);
