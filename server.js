@@ -75,8 +75,47 @@ app.use(errorHandler);
 // ---------------- Start Server ----------------
 const PORT = process.env.PORT || 8000;
 
+// One-time diagnostic + fix, run right after the DB connection is confirmed
+// open. Prints every index currently on the "users" collection, drops any
+// stale standalone unique index on "username" (leftover from an older
+// schema version), and makes sure the correct compound index
+// { lab: 1, username: 1 } exists. Safe to leave in permanently - after the
+// first run there is nothing left to drop, so later restarts just print
+// the index list and do nothing else.
+async function fixUserIndexes() {
+  const mongoose = require('mongoose');
+  const collection = mongoose.connection.db.collection('users');
+
+  const indexes = await collection.indexes();
+  console.log('\n[startup] Current indexes on "users" collection:');
+  console.log(indexes);
+
+  const staleIndex = indexes.find(
+    (idx) =>
+      idx.unique === true &&
+      Object.keys(idx.key).length === 1 &&
+      Object.keys(idx.key)[0] === 'username'
+  );
+
+  if (staleIndex) {
+    console.log(`[startup] Found stale index "${staleIndex.name}" on username alone -> dropping it...`);
+    await collection.dropIndex(staleIndex.name);
+    console.log('[startup] Stale index dropped.');
+  } else {
+    console.log('[startup] No stale standalone unique "username" index found.');
+  }
+
+  await collection.createIndex({ lab: 1, username: 1 }, { unique: true });
+  console.log('[startup] Confirmed compound index { lab: 1, username: 1 } exists.\n');
+}
+
 connectDB()
-    .then(() => {
+    .then(async () => {
+        try {
+            await fixUserIndexes();
+        } catch (err) {
+            console.error('[startup] Index fix check failed:', err);
+        }
         app.listen(PORT, () => {
             console.log(`Multi-Lab Hospital LIMS running on http://localhost:${PORT}`);
         });
