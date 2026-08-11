@@ -1,18 +1,21 @@
 const nodemailer = require('nodemailer');
 
-// Sends the two emails the approval workflow needs:
-//  - to the OWNER when a new lab registers and needs approval
-//  - to the LAB when the owner approves / rejects / suspends them
+// ============================================================
+// REQUIRED ENV VARS (add these in Render -> Environment tab)
+// ============================================================
+//   EMAIL_USER          - the Gmail address to send FROM
+//   EMAIL_APP_PASSWORD  - a Gmail "App Password" (NOT your normal password)
+//                          Create one at: https://myaccount.google.com/apppasswords
+//                          (requires 2-Step Verification to be turned ON first)
+//   OWNER_EMAIL          - the address that should RECEIVE
+//                          "new lab pending approval" notifications
+//                          (can be the same address as EMAIL_USER)
 //
-// Configure in .env:
-//   EMAIL_USER            - the Gmail address to send from
-//   EMAIL_APP_PASSWORD    - a Gmail "App Password" (NOT your normal Gmail password -
-//                            create one at https://myaccount.google.com/apppasswords,
-//                            requires 2-Step Verification to be on)
-//   OWNER_EMAIL            - where "new lab pending approval" emails go
-//
-// If these are not set, mail sending is silently skipped (logged to console)
-// so the rest of the app keeps working without email configured.
+// If EMAIL_USER / EMAIL_APP_PASSWORD are missing, mail sending is silently
+// skipped (logged to console only) so the rest of the app keeps working
+// without email configured. This is intentional - registration should never
+// fail just because email isn't set up yet.
+// ============================================================
 
 let transporter = null;
 
