@@ -13,8 +13,17 @@ function resultsPage() {
 @media print{
   .app-shell{display:none !important;}
   #toastEl{display:none !important;}
+  #printModalOverlay{display:none !important;}
   #printArea{display:block !important;}
-}`;
+}
+#printModalOverlay{display:none;position:fixed;inset:0;background:rgba(20,30,35,.45);z-index:200;align-items:center;justify-content:center;}
+#printModalOverlay.show{display:flex;}
+.print-modal{background:#fff;border-radius:12px;padding:22px 24px;width:460px;max-width:92vw;max-height:86vh;overflow:auto;}
+.print-modal h3{margin:0 0 4px;}
+.print-modal .hint{margin-bottom:14px;}
+.print-field-row{display:grid;grid-template-columns:1fr 1.4fr auto;gap:8px;margin-bottom:8px;align-items:center;}
+.print-field-row input{margin:0;}
+.print-modal-actions{display:flex;justify-content:space-between;align-items:center;margin-top:16px;}`;
 
   const body = `
 <div class="app-shell">
@@ -60,7 +69,20 @@ function resultsPage() {
     </div>
   </div>
 </div>
-<div id="printArea"></div>`;
+<div id="printArea"></div>
+
+<div id="printModalOverlay">
+  <div class="print-modal">
+    <h3>Report header</h3>
+    <div class="hint">Fill in or edit anything you want to appear at the top of the printed report (name, age, referring doctor, etc). Add more rows for anything else.</div>
+    <div id="printFieldList"></div>
+    <button type="button" class="btn btn-ghost btn-sm" id="addPrintFieldBtn">+ Add field</button>
+    <div class="print-modal-actions">
+      <button type="button" class="btn btn-ghost" id="cancelPrintBtn">Cancel</button>
+      <button type="button" class="btn btn-primary" id="confirmPrintBtn">Print</button>
+    </div>
+  </div>
+</div>`;
 
   const pageScript = `
 requireLogin();
@@ -288,7 +310,64 @@ function printTestTableHtml(test) {
   \`;
 }
 
-window.print2 = function () {
+// ---------- print header modal (manually typed/edited fields) ----------
+
+const printModalOverlay = document.getElementById('printModalOverlay');
+const printFieldList = document.getElementById('printFieldList');
+const addPrintFieldBtn = document.getElementById('addPrintFieldBtn');
+const cancelPrintBtn = document.getElementById('cancelPrintBtn');
+const confirmPrintBtn = document.getElementById('confirmPrintBtn');
+
+function printFieldRowHtml(label, value) {
+  return \`
+    <div class="print-field-row">
+      <input type="text" class="print-field-label" placeholder="Field name" value="\${label}" />
+      <input type="text" class="print-field-value" placeholder="Value" value="\${value}" />
+      <button type="button" class="btn btn-ghost btn-sm" onclick="this.closest('.print-field-row').remove()">✕</button>
+    </div>
+  \`;
+}
+
+function openPrintModal() {
+  const report = activeReport;
+  const p = report.patient;
+  const defaultFields = [
+    ['Name', p.name || ''],
+    ['Age', \`\${p.age || ''} \${p.ageUnit || ''}\`.trim()],
+    ['Gender', p.gender || ''],
+    ['Referring Doctor', ''],
+  ];
+  printFieldList.innerHTML = defaultFields.map(([l, v]) => printFieldRowHtml(l, v)).join('');
+  printModalOverlay.classList.add('show');
+}
+
+addPrintFieldBtn.addEventListener('click', () => {
+  printFieldList.insertAdjacentHTML('beforeend', printFieldRowHtml('', ''));
+});
+
+cancelPrintBtn.addEventListener('click', () => {
+  printModalOverlay.classList.remove('show');
+});
+
+confirmPrintBtn.addEventListener('click', () => {
+  const rows = [...printFieldList.querySelectorAll('.print-field-row')];
+  const fields = rows
+    .map((row) => ({
+      label: row.querySelector('.print-field-label').value.trim(),
+      value: row.querySelector('.print-field-value').value.trim(),
+    }))
+    .filter((f) => f.label || f.value);
+
+  printModalOverlay.classList.remove('show');
+  renderPrintArea(fields);
+  window.print();
+});
+
+function printHeaderFieldHtml(field) {
+  return \`<div><b>\${field.label}:</b> \${field.value}</div>\`;
+}
+
+function renderPrintArea(fields) {
   const report = activeReport;
   const testTables = report.tests.map(printTestTableHtml).join('');
 
@@ -304,14 +383,19 @@ window.print2 = function () {
           <div><b>Status:</b> \${report.status}</div>
         </div>
       </div>
-      <p>
-        <b>Patient:</b> \${report.patient.name} (\${report.patient.patientId}) &nbsp;
-        <b>Age/Sex:</b> \${report.patient.age} \${report.patient.ageUnit} / \${report.patient.gender}
-      </p>
+      <div style="margin-bottom:16px;">
+        \${fields.map(printHeaderFieldHtml).join('')}
+      </div>
       \${testTables}
+      <div style="margin-top:36px; padding-top:10px; border-top:1px solid #ccc; text-align:center; font-size:11px; color:#8a8a8a;">
+        Software by RKH LIMS Hospital &amp; AI Lab Suite
+      </div>
     </div>
   \`;
-  window.print();
+}
+
+window.print2 = function () {
+  openPrintModal();
 };
 
 // ---------- wire up + initial load ----------

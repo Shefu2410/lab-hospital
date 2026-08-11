@@ -1,112 +1,157 @@
 const express = require('express');
-const router = express.Router();
-const bcrypt = require('bcrypt');
-const jwt = require('jsonwebtoken');
-const crypto = require('crypto');
-const Admin = require('../models/Admin');
 const Lab = require('../models/Lab');
-const requireAdmin = require('../middleware/requireAdmin');
+const User = require('../models/User');
+const Patient = require('../models/Patient');
+const Result = require('../models/Result');
+const { ownerProtect } = require('../middleware/auth');
+const { decryptSecret } = require('../utils/secretCrypto');
+const { notifyLabStatusChanged } = require('../utils/mailer');
 
-// NOTE: this router is mounted in server.js as:
-//   app.use('/api/admin', adminRoutes);
-// so every path below must be RELATIVE to /api/admin.
-// Previously these were written as '/api/admin/login' etc,
-// which meant the real live route was
-// /api/admin/api/admin/login — never matching what the
-// frontend actually calls. Fixed to relative paths.
+const router = express.Router();
+router.use(ownerProtect);
 
-// POST /api/admin/login
-router.post('/login', async (req, res) => {
+// GET /api/admin/labs?status= - list every lab on the platform.
+// Never includes the password field - use GET /labs/:id/password to reveal
+// one at a time, so a page load can't silently leak every lab's password.
+router.get('/labs', async (req, res, next) => {
   try {
-    const { email, password } = req.body;
-    if (!email || !password) {
-      return res.status(400).json({ message: 'Email and password are required' });
-    }
+    const { status } = req.query;
+    const filter = status ? { status } : {};
+    const labs = await Lab.find(filter).select('-adminPasswordEnc').sort({ createdAt: -1 });
+    res.json(labs);
+  } catch (err) {
+    next(err);
+  }
+});
 
-    const admin = await Admin.findOne({ email: email.toLowerCase().trim() });
-    if (!admin) {
-      return res.status(404).json({ message: 'Admin not found' });
+// GET /api/admin/labs/:id/password - reveal the lab admin's initial password.
+// Deliberately a separate, explicit endpoint (rather than including it in
+// the list above) so it's only ever fetched when the owner clicks "reveal".
+router.get('/labs/:id/password', async (req, res, next) => {
+  try {
+    const lab = await Lab.findById(req.params.id).select('adminPasswordEnc');
+    if (!lab) return res.status(404).json({ message: 'Lab not found.' });
+    const password = decryptSecret(lab.adminPasswordEnc);
+    if (!password) {
+      return res.status(404).json({ message: 'No stored password for this lab (registered before this feature, or the admin has since changed it).' });
     }
+    res.json({ password });
+  } catch (err) {
+    next(err);
+  }
+});
 
-    const match = await bcrypt.compare(password, admin.password);
-    if (!match) {
-      return res.status(401).json({ message: 'Invalid credentials' });
-    }
+// GET /api/admin/labs/:id - single lab, with basic usage counts
+router.get('/labs/:id', async (req, res, next) => {
+  try {
+    const lab = await Lab.findById(req.params.id);
+    if (!lab) return res.status(404).json({ message: 'Lab not found.' });
 
-    const token = jwt.sign(
-      { id: admin._id, role: 'admin' },
-      process.env.JWT_SECRET,
-      { expiresIn: '8h' }
+    const [userCount, patientCount, reportCount] = await Promise.all([
+      User.countDocuments({ lab: lab._id }),
+      Patient.countDocuments({ lab: lab._id }),
+      Result.countDocuments({ lab: lab._id }),
+    ]);
+
+    res.json({ ...lab.toObject(), userCount, patientCount, reportCount });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PUT /api/admin/labs/:id/approve
+router.put('/labs/:id/approve', async (req, res, next) => {
+  try {
+    const lab = await Lab.findByIdAndUpdate(
+      req.params.id,
+      { status: 'approved', approvedAt: new Date(), rejectionReason: '' },
+      { new: true }
     );
-
-    return res.json({ message: 'Login successful', token });
+    if (!lab) return res.status(404).json({ message: 'Lab not found.' });
+    notifyLabStatusChanged(lab).catch(() => {});
+    res.json(lab);
   } catch (err) {
-    console.error('Admin login error:', err);
-    return res.status(500).json({ message: 'Server error during admin login' });
+    next(err);
   }
 });
 
-// GET /api/admin/labs/pending  (admin only)
-router.get('/labs/pending', requireAdmin, async (req, res) => {
-  try {
-    const pending = await Lab.find({ status: 'pending' }).select('-password');
-    return res.json(pending);
-  } catch (err) {
-    console.error('Fetch pending labs error:', err);
-    return res.status(500).json({ message: 'Server error fetching pending labs' });
-  }
-});
-
-// GET /api/admin/labs  (admin only) — all labs, any status
-router.get('/labs', requireAdmin, async (req, res) => {
-  try {
-    const labs = await Lab.find().select('-password');
-    return res.json(labs);
-  } catch (err) {
-    console.error('Fetch labs error:', err);
-    return res.status(500).json({ message: 'Server error fetching labs' });
-  }
-});
-
-// POST /api/admin/labs/:id/approve  (admin only)
-router.post('/labs/:id/approve', requireAdmin, async (req, res) => {
-  try {
-    const labCode = 'LAB-' + crypto.randomBytes(4).toString('hex').toUpperCase();
-
-    const lab = await Lab.findByIdAndUpdate(
-      req.params.id,
-      { status: 'approved', labCode },
-      { new: true }
-    ).select('-password');
-
-    if (!lab) {
-      return res.status(404).json({ message: 'Lab not found' });
-    }
-
-    return res.json({ message: 'Lab approved', lab });
-  } catch (err) {
-    console.error('Approve lab error:', err);
-    return res.status(500).json({ message: 'Server error approving lab' });
-  }
-});
-
-// POST /api/admin/labs/:id/reject  (admin only)
-router.post('/labs/:id/reject', requireAdmin, async (req, res) => {
+// PUT /api/admin/labs/:id/reject   body: { reason }
+router.put('/labs/:id/reject', async (req, res, next) => {
   try {
     const lab = await Lab.findByIdAndUpdate(
       req.params.id,
-      { status: 'rejected' },
+      { status: 'rejected', rejectionReason: req.body.reason || '' },
       { new: true }
-    ).select('-password');
-
-    if (!lab) {
-      return res.status(404).json({ message: 'Lab not found' });
-    }
-
-    return res.json({ message: 'Lab rejected', lab });
+    );
+    if (!lab) return res.status(404).json({ message: 'Lab not found.' });
+    notifyLabStatusChanged(lab).catch(() => {});
+    res.json(lab);
   } catch (err) {
-    console.error('Reject lab error:', err);
-    return res.status(500).json({ message: 'Server error rejecting lab' });
+    next(err);
+  }
+});
+
+// PUT /api/admin/labs/:id/suspend
+router.put('/labs/:id/suspend', async (req, res, next) => {
+  try {
+    const lab = await Lab.findByIdAndUpdate(req.params.id, { status: 'suspended' }, { new: true });
+    if (!lab) return res.status(404).json({ message: 'Lab not found.' });
+    notifyLabStatusChanged(lab).catch(() => {});
+    res.json(lab);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PUT /api/admin/labs/:id/reactivate - bring a suspended lab back to approved
+router.put('/labs/:id/reactivate', async (req, res, next) => {
+  try {
+    const lab = await Lab.findByIdAndUpdate(req.params.id, { status: 'approved' }, { new: true });
+    if (!lab) return res.status(404).json({ message: 'Lab not found.' });
+    notifyLabStatusChanged(lab).catch(() => {});
+    res.json(lab);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// DELETE /api/admin/labs/:id - permanently remove a lab and everything in it
+router.delete('/labs/:id', async (req, res, next) => {
+  try {
+    const lab = await Lab.findById(req.params.id);
+    if (!lab) return res.status(404).json({ message: 'Lab not found.' });
+
+    await Promise.all([
+      User.deleteMany({ lab: lab._id }),
+      Patient.deleteMany({ lab: lab._id }),
+      Result.deleteMany({ lab: lab._id }),
+      require('../models/TestCatalog').deleteMany({ lab: lab._id }),
+    ]);
+    await lab.deleteOne();
+
+    res.json({ message: `Lab "${lab.name}" and all its data were deleted.` });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/admin/stats - platform-wide overview
+router.get('/stats', async (req, res, next) => {
+  try {
+    const [totalLabs, pendingLabs, approvedLabs, rejectedLabs, suspendedLabs, totalPatients, totalReports] =
+      await Promise.all([
+        Lab.countDocuments(),
+        Lab.countDocuments({ status: 'pending' }),
+        Lab.countDocuments({ status: 'approved' }),
+        Lab.countDocuments({ status: 'rejected' }),
+        Lab.countDocuments({ status: 'suspended' }),
+        Patient.countDocuments(),
+        Result.countDocuments(),
+      ]);
+
+    res.json({ totalLabs, pendingLabs, approvedLabs, rejectedLabs, suspendedLabs, totalPatients, totalReports });
+  } catch (err) {
+    next(err);
   }
 });
 

@@ -1,16 +1,9 @@
 /**
  * Run once with `npm run seed` after configuring .env to create:
- *  - a platform admin (superadmin) account used to approve/reject new labs
- *  - a demo lab, pre-approved so it's usable immediately
+ *  - a demo lab (active immediately - no approval step)
  *  - default logins within that demo lab (admin / pathologist / lab-technician)
  *  - a starter test catalog for the demo lab (RFT, LFT, CBC, Lipid, Glucose)
  * Safe to re-run: it skips anything that already exists.
- *
- * NOTE: if you're re-running this after a previous broken run, delete any
- * stale demo lab document first, e.g.:
- *   db.labs.deleteOne({ email: "demo-lab@rkhcross.test" })
- * Otherwise this script will find the old broken record and skip creating
- * a correct one.
  */
 require('dotenv').config();
 const connectDB = require('./config/db');
@@ -20,11 +13,10 @@ const TestCatalog = require('./models/TestCatalog');
 const { generateLabCode } = require('./utils/idGenerator');
 
 const DEMO_LAB = {
-  labName: 'RKH Diagnostics (Demo)',
+  name: 'RKH Diagnostics (Demo)',
   email: 'demo-lab@rkhcross.test',
-  adminName: 'Demo Lab Owner',
-  username: 'demo-lab-owner',   // required by Lab schema; distinct from the admin/admin123 User created below
-  password: 'demo-owner-pass1', // required by Lab schema
+  phone: '9999999999',
+  address: 'Rajkot, Gujarat, India',
 };
 
 const defaultLabUsers = [
@@ -101,35 +93,21 @@ const defaultTests = [
 async function seed() {
   await connectDB();
 
-  // 0. Platform admin - logs in with lab code "PLATFORM" to approve labs
-  const SUPERADMIN = {
-    name: 'Platform Admin',
-    username: 'superadmin',
-    password: 'super123',
-  };
-  let superadmin = await User.findOne({ role: 'superadmin', username: SUPERADMIN.username });
-  if (!superadmin) {
-    superadmin = await User.create({ ...SUPERADMIN, role: 'superadmin' });
-    console.log(`Created platform admin: ${SUPERADMIN.username} / ${SUPERADMIN.password}`);
-  } else {
-    console.log(`Platform admin already exists (${SUPERADMIN.username})`);
-  }
-
-  // 1. Demo lab, pre-approved so it's usable immediately
+  // 1. Demo lab, active immediately
   let lab = await Lab.findOne({ email: DEMO_LAB.email });
   if (!lab) {
-    const labCode = await generateLabCode(DEMO_LAB.labName);
-    lab = await Lab.create({ ...DEMO_LAB, labCode, status: 'approved', approvedAt: new Date() });
-    console.log(`Created demo lab: ${lab.labName} (code: ${lab.labCode})`);
-  } else if (!lab.labCode) {
-    // Recover a lab that exists but never got a code assigned (e.g. from a previous broken run)
-    lab.labCode = await generateLabCode(lab.labName);
+    const code = await generateLabCode(DEMO_LAB.name);
+    // Seeded lab is pre-approved - it's demo data, not a real signup that
+    // should wait for the Owner Console.
+    lab = await Lab.create({ ...DEMO_LAB, code, status: 'approved', approvedAt: new Date() });
+    console.log(`Created demo lab: ${lab.name} (code: ${lab.code}, status: approved)`);
+  } else if (lab.status !== 'approved') {
     lab.status = 'approved';
-    lab.approvedAt = lab.approvedAt || new Date();
+    lab.approvedAt = new Date();
     await lab.save();
-    console.log(`Repaired demo lab, assigned code: ${lab.labCode}`);
+    console.log(`Demo lab already existed but wasn't approved - fixed (code: ${lab.code})`);
   } else {
-    console.log(`Demo lab already exists (code: ${lab.labCode})`);
+    console.log(`Demo lab already exists (code: ${lab.code})`);
   }
 
   // 2. Default users inside the demo lab
@@ -137,9 +115,9 @@ async function seed() {
     const exists = await User.findOne({ lab: lab._id, username: u.username });
     if (!exists) {
       await User.create({ ...u, lab: lab._id });
-      console.log(`Created user: ${u.username} / ${u.password} (role: ${u.role}, lab: ${lab.labCode})`);
+      console.log(`Created user: ${u.username} / ${u.password} (role: ${u.role}, lab: ${lab.code})`);
     } else {
-      console.log(`User already exists: ${u.username} (lab: ${lab.labCode})`);
+      console.log(`User already exists: ${u.username} (lab: ${lab.code})`);
     }
   }
 
@@ -148,15 +126,15 @@ async function seed() {
     const exists = await TestCatalog.findOne({ lab: lab._id, code: t.code });
     if (!exists) {
       await TestCatalog.create({ ...t, lab: lab._id });
-      console.log(`Created test panel: ${t.name} (lab: ${lab.labCode})`);
+      console.log(`Created test panel: ${t.name} (lab: ${lab.code})`);
     } else {
-      console.log(`Test panel already exists: ${t.name} (lab: ${lab.labCode})`);
+      console.log(`Test panel already exists: ${t.name} (lab: ${lab.code})`);
     }
   }
 
   console.log('\nSeeding complete.');
-  console.log(`Platform admin login -> lab code: PLATFORM, username: superadmin, password: super123`);
-  console.log(`Demo lab login -> lab code: ${lab.labCode}, then any of admin/admin123, pathologist/path123, technician/tech123`);
+  console.log(`Log in with lab code: ${lab.code}, then any of admin/admin123, pathologist/path123, technician/tech123`);
+  process.exit(0);
 }
 
 seed().catch((err) => {

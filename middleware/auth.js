@@ -21,43 +21,18 @@ async function protect(req, res, next) {
       return res.status(401).json({ message: 'User no longer exists.' });
     }
 
-    // Superadmins aren't attached to a lab by default. If they're hitting a
-    // lab-scoped route (patients, results, etc.), they must specify which
-    // lab they're acting on behalf of via the x-lab-id header or ?lab= query.
-    if (user.role === 'superadmin') {
-      req.user = user.toSafeObject();
-      const actingLabId = req.headers['x-lab-id'] || req.query.lab;
-
-      if (actingLabId) {
-        const lab = await Lab.findById(actingLabId);
-        if (!lab) {
-          return res.status(404).json({ message: 'Specified lab could not be found.' });
-        }
-        req.user.lab = lab._id;
-        req.lab = lab;
-      } else {
-        req.lab = null;
-      }
-      return next();
-    }
-
     const lab = await Lab.findById(user.lab);
     if (!lab) {
       return res.status(401).json({ message: 'Your lab could not be found.' });
     }
-    if (lab.status !== 'approved') {
-      const messages = {
-        pending: 'Your lab is still awaiting approval.',
-        rejected: 'Your lab registration was not approved.',
-        suspended: 'This lab account has been suspended. Contact support.',
-      };
-      return res.status(403).json({ message: messages[lab.status] || 'This lab account is not active.' });
+    if (!lab.active) {
+      return res.status(403).json({ message: 'This lab account is deactivated. Contact support.' });
+    }
+    if (lab.status && lab.status !== 'approved') {
+      return res.status(403).json({ message: 'This lab is not currently approved. Contact support.' });
     }
 
     req.user = user.toSafeObject();
-    // Belt-and-suspenders: guarantee req.user.lab is always the lab's id,
-    // even if toSafeObject() ever changes what it returns.
-    req.user.lab = user.lab;
     req.lab = lab;
     next();
   } catch (err) {
@@ -75,17 +50,24 @@ function requireRole(...roles) {
   };
 }
 
-// Blocks accounts with no lab attached from lab-scoped routes like
-// patients/results, where req.user.lab is required. Superadmins can pass
-// this by specifying which lab they're acting on behalf of (see protect()).
-function requireLab(req, res, next) {
-  if (!req.user || !req.user.lab) {
-    const message = req.user?.role === 'superadmin'
-      ? 'Specify which lab to act on behalf of (x-lab-id header or ?lab= query param).'
-      : 'This action is only available to lab accounts.';
-    return res.status(403).json({ message });
+// Verifies the owner's JWT (issued by routes/ownerAuthRoutes.js). Separate
+// from `protect` because the owner is not a lab User in the database.
+function ownerProtect(req, res, next) {
+  try {
+    const header = req.headers.authorization || '';
+    const token = header.startsWith('Bearer ') ? header.slice(7) : null;
+    if (!token) {
+      return res.status(401).json({ message: 'Not authorized. Please log in as owner.' });
+    }
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    if (decoded.role !== 'owner') {
+      return res.status(403).json({ message: 'Owner access only.' });
+    }
+    req.owner = true;
+    next();
+  } catch (err) {
+    return res.status(401).json({ message: 'Invalid or expired session. Please log in again.' });
   }
-  next();
 }
 
-module.exports = { protect, requireRole, requireLab };
+module.exports = { protect, requireRole, ownerProtect };

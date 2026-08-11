@@ -1,151 +1,81 @@
-const { Resend } = require('resend');
+const nodemailer = require('nodemailer');
 
-// ======================================================
-// LAZY RESEND CLIENT
+// Sends the two emails the approval workflow needs:
+//  - to the OWNER when a new lab registers and needs approval
+//  - to the LAB when the owner approves / rejects / suspends them
 //
-// We do NOT construct `new Resend(...)` at the top level.
-// If RESEND_API_KEY is missing, doing so throws immediately
-// at require-time and crashes the entire server before it
-// can even bind to a port. Instead we create the client on
-// first use, only if the key exists.
-// ======================================================
+// Configure in .env:
+//   EMAIL_USER            - the Gmail address to send from
+//   EMAIL_APP_PASSWORD    - a Gmail "App Password" (NOT your normal Gmail password -
+//                            create one at https://myaccount.google.com/apppasswords,
+//                            requires 2-Step Verification to be on)
+//   OWNER_EMAIL            - where "new lab pending approval" emails go
+//
+// If these are not set, mail sending is silently skipped (logged to console)
+// so the rest of the app keeps working without email configured.
 
-let resend = null;
+let transporter = null;
 
-function getResendClient() {
-  if (!resend && process.env.RESEND_API_KEY) {
-    resend = new Resend(process.env.RESEND_API_KEY);
-  }
-  return resend;
+function getTransporter() {
+  if (transporter) return transporter;
+  if (!process.env.EMAIL_USER || !process.env.EMAIL_APP_PASSWORD) return null;
+
+  transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_APP_PASSWORD,
+    },
+  });
+  return transporter;
 }
 
-
-// ======================================================
-// SEND "NEW LAB REGISTERED" EMAIL
-//
-// Fire-and-forget style: caller should NOT let a failed
-// email block or fail the registration request itself.
-//
-// Uses Resend's HTTPS API instead of raw SMTP, since
-// Render's outbound SMTP connections were timing out.
-// ======================================================
-
-async function sendNewLabRegisteredEmail(lab) {
-
-  const ownerEmail =
-    process.env.OWNER_EMAIL ||
-    process.env.GMAIL_USER;
-
-  if (!ownerEmail) {
-
-    console.error(
-      'sendNewLabRegisteredEmail: OWNER_EMAIL / GMAIL_USER not set, skipping email.'
-    );
-
+async function sendMail({ to, subject, text }) {
+  const t = getTransporter();
+  if (!t) {
+    console.log(`[mailer] Skipped (EMAIL_USER/EMAIL_APP_PASSWORD not set in .env). Would have sent to ${to}: ${subject}`);
     return;
-
   }
-
-  const client = getResendClient();
-
-  if (!client) {
-
-    console.error(
-      'sendNewLabRegisteredEmail: RESEND_API_KEY not set, skipping email.'
-    );
-
-    return;
-
-  }
-
-
-  const html = `
-    <div style="font-family:Arial,sans-serif;font-size:14px;color:#222;">
-      <h2 style="margin-bottom:4px;">New Laboratory Registration</h2>
-      <p style="color:#666;margin-top:0;">A new lab has registered and is waiting for your approval.</p>
-
-      <table style="border-collapse:collapse;margin-top:12px;">
-        <tr>
-          <td style="padding:6px 12px 6px 0;font-weight:bold;">Lab Name</td>
-          <td style="padding:6px 0;">${escapeHtml(lab.labName)}</td>
-        </tr>
-        <tr>
-          <td style="padding:6px 12px 6px 0;font-weight:bold;">Admin Name</td>
-          <td style="padding:6px 0;">${escapeHtml(lab.adminName)}</td>
-        </tr>
-        <tr>
-          <td style="padding:6px 12px 6px 0;font-weight:bold;">Email</td>
-          <td style="padding:6px 0;">${escapeHtml(lab.email)}</td>
-        </tr>
-        <tr>
-          <td style="padding:6px 12px 6px 0;font-weight:bold;">Username</td>
-          <td style="padding:6px 0;">${escapeHtml(lab.username)}</td>
-        </tr>
-        <tr>
-          <td style="padding:6px 12px 6px 0;font-weight:bold;">Status</td>
-          <td style="padding:6px 0;">Pending Approval</td>
-        </tr>
-      </table>
-
-      <p style="margin-top:20px;">
-        Log in to the Owner Panel to approve or reject this registration.
-      </p>
-    </div>
-  `;
-
-
   try {
-
-    const { data, error } = await client.emails.send({
-      // While testing on a free Resend account (no verified domain yet),
-      // this MUST stay exactly as below — Resend only allows sending
-      // from onboarding@resend.dev until you verify your own domain.
-      from: 'Lab System <onboarding@resend.dev>',
-      to: ownerEmail,
-      subject: `New Lab Registration: ${lab.labName}`,
-      html
-    });
-
-    if (error) {
-      console.error(
-        'Failed to send new-lab-registered email:',
-        error
-      );
-    }
-
+    await t.sendMail({ from: `"RKH LIMS" <${process.env.EMAIL_USER}>`, to, subject, text });
   } catch (err) {
-
-    // Never throw - a broken mailer must not break registration.
-    console.error(
-      'Failed to send new-lab-registered email:',
-      err.message
-    );
-
+    // Never let a mail failure break an API request - just log it.
+    console.error('[mailer] Failed to send email:', err.message);
   }
-
 }
 
-
-// ======================================================
-// ESCAPE HTML (avoid breaking the email markup)
-// ======================================================
-
-function escapeHtml(value) {
-
-  if (value === null || value === undefined) {
-    return '';
+function notifyOwnerNewLabPending(lab) {
+  const ownerEmail = process.env.OWNER_EMAIL;
+  if (!ownerEmail) {
+    console.log('[mailer] OWNER_EMAIL not set - skipping new-lab-pending notification.');
+    return;
   }
-
-  return String(value)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-
+  return sendMail({
+    to: ownerEmail,
+    subject: `New lab pending approval: ${lab.name}`,
+    text:
+      `A new lab has registered and is waiting for approval.\n\n` +
+      `Lab name: ${lab.name}\n` +
+      `Lab code: ${lab.code}\n` +
+      `Lab email: ${lab.email}\n` +
+      `Phone: ${lab.phone || '-'}\n\n` +
+      `Approve or reject it from the Owner page: /owner.html`,
+  });
 }
 
+function notifyLabStatusChanged(lab) {
+  const statusText = {
+    approved: 'has been approved. You can now log in with your lab code.',
+    rejected: `was rejected.${lab.rejectionReason ? ' Reason: ' + lab.rejectionReason : ''}`,
+    suspended: 'has been suspended. Please contact support.',
+    pending: 'is pending approval.',
+  }[lab.status] || `status changed to ${lab.status}.`;
 
-module.exports = {
-  sendNewLabRegisteredEmail
-};
+  return sendMail({
+    to: lab.email,
+    subject: `RKH LIMS: your lab "${lab.name}" ${lab.status}`,
+    text: `Your lab "${lab.name}" (code ${lab.code}) ${statusText}`,
+  });
+}
+
+module.exports = { sendMail, notifyOwnerNewLabPending, notifyLabStatusChanged };

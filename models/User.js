@@ -8,18 +8,14 @@ const userSchema = new mongoose.Schema(
     password: { type: String, required: true },
     role: {
       type: String,
-      // 'superadmin' is the platform admin who approves/rejects/suspends labs.
-      // It is not tied to any single Lab.
-      enum: ['superadmin', 'admin', 'pathologist', 'lab-technician'],
+      enum: ['admin', 'pathologist', 'lab-technician'],
       default: 'lab-technician',
     },
-    // Every user belongs to exactly one Lab, except a superadmin.
+    // Every user belongs to exactly one Lab.
     lab: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Lab',
-      required: function () {
-        return this.role !== 'superadmin';
-      },
+      required: true,
     },
   },
   { timestamps: true }
@@ -30,31 +26,12 @@ userSchema.index({ lab: 1, username: 1 }, { unique: true });
 
 // Hash password whenever it is set/changed
 userSchema.pre('save', async function (next) {
-
-  if (!this.isModified('password')) {
-    return next();
-  }
-
-  // If password is already bcrypt hashed,
-  // don't hash it again.
-  if (
-    this.password.startsWith('$2a$') ||
-    this.password.startsWith('$2b$') ||
-    this.password.startsWith('$2y$')
-  ) {
-    return next();
-  }
-
+  if (!this.isModified('password')) return next();
   const salt = await bcrypt.genSalt(10);
-
-  this.password =
-    await bcrypt.hash(
-      this.password,
-      salt
-    );
-
+  this.password = await bcrypt.hash(this.password, salt);
   next();
 });
+
 userSchema.methods.comparePassword = function (candidate) {
   return bcrypt.compare(candidate, this.password);
 };

@@ -1,7 +1,4 @@
-// Shared browser-side helpers, generated as a JS string and inlined into every
-// page by views/shell.js. This replaces the old static js/api.js + js/layout.js
-// files - all frontend logic now lives inside the backend as JS.
-module.exports = `
+
 // ---- session helpers ----
 function getToken() { return localStorage.getItem('lims_token'); }
 function getUser() {
@@ -93,4 +90,3 @@ function showToast(message, type = '') {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => el.classList.remove('show'), 3200);
 }
-`;

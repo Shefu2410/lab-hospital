@@ -25,7 +25,7 @@ function registrationPage() {
       <div class="grid-2">
         <div class="card">
           <div class="card-head"><h3>Patient Details</h3><span class="hint">Stored in the patients collection</span></div>
-          <div class="hint" style="margin-bottom:10px;">Family members can share the same phone number — each patient still gets their own unique Patient ID.</div>
+          <div class="hint" style="margin-bottom:10px;">Each phone number can only be registered once — re-entering the same number will be rejected instead of creating a duplicate.</div>
           <form id="patientForm">
             <div class="field-row">
               <div class="field"><label>Full Name *</label><input id="p_name" required /></div>

@@ -1,990 +1,212 @@
 const { renderPage } = require('./shell');
 
 function ownerPage() {
+  const extraStyle = `
+.owner-shell{max-width:1180px;margin:0 auto;padding:26px 22px 60px;}
+.owner-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px;}
+.owner-top h1{margin:0 0 4px;}
+.pw-cell{font-family:'Courier New',monospace;font-size:13px;white-space:nowrap;}
+.pw-btn{padding:4px 9px;font-size:12px;}
+.status-pending{background:#fdf3dd;color:#9a6b0c;}
+.status-approved{background:#e2f6ec;color:#1f9d6b;}
+.status-rejected{background:#fbe7e7;color:#c94040;}
+.status-suspended{background:#eee;color:#666;}
+.status-pill{display:inline-block;padding:3px 10px;border-radius:999px;font-size:11.5px;font-weight:700;text-transform:capitalize;}
+.action-btns{display:flex;gap:6px;flex-wrap:wrap;}
+`;
 
   const body = `
-<div class="page-container">
-
-  <!-- ======================================================
-       OWNER LOGIN
-       ====================================================== -->
-
-  <div class="card" style="max-width:600px;margin:0 auto 24px;">
-
-    <h1 style="margin-bottom:8px;">
-      Owner Panel
-    </h1>
-
-    <p class="subtitle">
-      Enter your owner secret key to manage registered laboratories.
-    </p>
-
-    <div class="field">
-      <label for="ownerKeyInput">
-        Owner Secret Key
-      </label>
-
-      <input
-        type="password"
-        id="ownerKeyInput"
-        placeholder="Enter owner secret key"
-        autocomplete="off"
-      />
+<div class="owner-shell">
+  <div class="owner-top">
+    <div>
+      <h1>Owner Console</h1>
+      <div class="crumb">Every lab on the platform &middot; approve new signups, manage status, view initial credentials</div>
     </div>
-
-    <div
-      id="keyError"
-      class="form-error"
-      style="display:none;"
-    ></div>
-
-    <button
-      type="button"
-      id="loadLabsBtn"
-      class="btn btn-primary btn-block"
-    >
-      Open Owner Panel
-    </button>
-
+    <a href="#" onclick="ownerLogout();return false;" class="btn btn-ghost">Log out</a>
   </div>
 
-
-  <!-- ======================================================
-       LAB MANAGEMENT
-       ====================================================== -->
-
-  <div
-    class="card"
-    id="labsCard"
-    style="display:none;"
-  >
-
-    <div
-      style="
-        display:flex;
-        justify-content:space-between;
-        align-items:center;
-        gap:15px;
-        margin-bottom:20px;
-      "
-    >
-
-      <div>
-        <h2 style="margin:0 0 5px;">
-          Laboratory Management
-        </h2>
-
-        <p class="subtitle" style="margin:0;">
-          Review and manage laboratory registrations.
-        </p>
-      </div>
-
-      <div style="display:flex;gap:8px;">
-
-        <button
-          type="button"
-          id="refreshBtn"
-          class="btn btn-secondary"
-        >
-          Refresh
-        </button>
-
-        <button
-          type="button"
-          id="forgetKeyBtn"
-          class="btn btn-secondary"
-        >
-          Logout Owner
-        </button>
-
-      </div>
-
-    </div>
-
-
-    <!-- ====================================================
-         MESSAGE
-         ==================================================== -->
-
-    <div
-      id="actionMessage"
-      style="
-        display:none;
-        padding:12px 15px;
-        border-radius:8px;
-        margin-bottom:15px;
-        font-size:14px;
-      "
-    ></div>
-
-
-    <!-- ====================================================
-         LAB TABLE
-         ==================================================== -->
-
-    <div style="overflow-x:auto;">
-
-      <table
-        style="
-          width:100%;
-          border-collapse:collapse;
-          min-width:800px;
-        "
-      >
-
-        <thead>
-
-          <tr
-            style="
-              text-align:left;
-              border-bottom:2px solid #e2e8e8;
-            "
-          >
-
-            <th style="padding:12px;">
-              LAB CODE
-            </th>
-
-            <th style="padding:12px;">
-              LAB NAME
-            </th>
-
-            <th style="padding:12px;">
-              EMAIL
-            </th>
-
-            <th style="padding:12px;">
-              ADMIN
-            </th>
-
-            <th style="padding:12px;">
-              STATUS
-            </th>
-
-            <th style="padding:12px;">
-              ACTION
-            </th>
-
-          </tr>
-
-        </thead>
-
-        <tbody id="labsTbody">
-
-        </tbody>
-
-      </table>
-
-    </div>
-
+  <div class="stat-grid" id="statGrid">
+    <div class="stat-card"><div class="label">Total Labs</div><div class="value" id="statTotal">—</div></div>
+    <div class="stat-card"><div class="label">Pending Approval</div><div class="value" id="statPending">—</div></div>
+    <div class="stat-card"><div class="label">Approved</div><div class="value" id="statApproved">—</div></div>
+    <div class="stat-card"><div class="label">Rejected</div><div class="value" id="statRejected">—</div></div>
+    <div class="stat-card"><div class="label">Suspended</div><div class="value" id="statSuspended">—</div></div>
   </div>
 
-</div>
-`;
-
-
-  // ==========================================================
-  // JAVASCRIPT
-  // ==========================================================
+  <div class="card">
+    <div class="card-head">
+      <h3>Labs</h3>
+      <span class="hint">Click "Show" to reveal a lab's initial admin password (only visible here)</span>
+    </div>
+    <div class="toolbar">
+      <select class="select-input" id="statusFilter" style="max-width:220px;">
+        <option value="">All statuses</option>
+        <option value="pending">Pending</option>
+        <option value="approved">Approved</option>
+        <option value="rejected">Rejected</option>
+        <option value="suspended">Suspended</option>
+      </select>
+    </div>
+    <table>
+      <thead>
+        <tr><th>Lab</th><th>Code</th><th>Email</th><th>Password</th><th>Status</th><th>Registered</th><th>Actions</th></tr>
+      </thead>
+      <tbody id="labBody"><tr><td colspan="7" class="empty-state">Loading…</td></tr></tbody>
+    </table>
+  </div>
+</div>`;
 
   const pageScript = `
+// ---- owner-only session (separate from lab-user session) ----
+function ownerToken() { return localStorage.getItem('owner_token'); }
+function ownerLogout() { localStorage.removeItem('owner_token'); window.location.href = '/owner-login.html'; }
+if (!ownerToken()) window.location.href = '/owner-login.html';
 
-const keyInput = document.getElementById('ownerKeyInput');
-const keyError = document.getElementById('keyError');
-
-const loadBtn = document.getElementById('loadLabsBtn');
-const refreshBtn = document.getElementById('refreshBtn');
-const forgetBtn = document.getElementById('forgetKeyBtn');
-
-const labsCard = document.getElementById('labsCard');
-const tbody = document.getElementById('labsTbody');
-
-const actionMessage = document.getElementById('actionMessage');
-
-
-// ============================================================
-// OWNER KEY
-// ============================================================
-
-function getOwnerKey() {
-
-  return sessionStorage.getItem('owner_key') || '';
-
-}
-
-
-function setOwnerKey(key) {
-
-  sessionStorage.setItem('owner_key', key);
-
-}
-
-
-function clearOwnerKey() {
-
-  sessionStorage.removeItem('owner_key');
-
-}
-
-
-// ============================================================
-// ESCAPE HTML
-// ============================================================
-// Prevents lab names/emails from breaking the HTML.
-// ============================================================
-
-function escapeHtml(value) {
-
-  if (value === null || value === undefined) {
-    return '';
-  }
-
-  return String(value)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-
-}
-
-
-// ============================================================
-// OWNER API REQUEST
-// ============================================================
-
-async function ownerFetch(path, options = {}) {
-
-  const key = getOwnerKey();
-
+async function ownerApi(path, options = {}) {
   const headers = Object.assign(
-    {
-      'Content-Type': 'application/json',
-      'x-owner-key': key
-    },
+    { 'Content-Type': 'application/json' },
+    { Authorization: 'Bearer ' + ownerToken() },
     options.headers || {}
   );
-
-  const response = await fetch(
-    '/api' + path,
-    Object.assign(
-      {},
-      options,
-      {
-        headers
-      }
-    )
-  );
-
+  const res = await fetch('/api' + path, Object.assign({}, options, { headers }));
   let data = null;
-
-  try {
-
-    data = await response.json();
-
-  } catch (error) {
-
-    data = null;
-
+  try { data = await res.json(); } catch (e) {}
+  if (!res.ok) {
+    if (res.status === 401 || res.status === 403) { ownerLogout(); }
+    throw new Error((data && data.message) || ('Request failed (' + res.status + ')'));
   }
-
-
-  if (!response.ok) {
-
-    throw new Error(
-      (data && data.message)
-        ? data.message
-        : 'Request failed (' + response.status + ')'
-    );
-
-  }
-
   return data;
-
 }
 
+const labBody = document.getElementById('labBody');
+const statusFilter = document.getElementById('statusFilter');
+let labsCache = [];
 
-// ============================================================
-// MESSAGE
-// ============================================================
-
-function showMessage(message, type) {
-
-  actionMessage.textContent = message;
-
-  actionMessage.style.display = 'block';
-
-  if (type === 'success') {
-
-    actionMessage.style.background = '#e3f6ec';
-    actionMessage.style.color = '#087443';
-
-  } else {
-
-    actionMessage.style.background = '#fde8e8';
-    actionMessage.style.color = '#b42318';
-
+async function loadStats() {
+  try {
+    const stats = await ownerApi('/admin/stats');
+    document.getElementById('statTotal').textContent = stats.totalLabs;
+    document.getElementById('statPending').textContent = stats.pendingLabs;
+    document.getElementById('statApproved').textContent = stats.approvedLabs;
+    document.getElementById('statRejected').textContent = stats.rejectedLabs;
+    document.getElementById('statSuspended').textContent = stats.suspendedLabs;
+  } catch (err) {
+    showToast(err.message, 'error');
   }
-
 }
 
-
-function hideMessage() {
-
-  actionMessage.style.display = 'none';
-
+function actionButtonsHtml(lab) {
+  const btns = [];
+  if (lab.status === 'pending') {
+    btns.push('<button class="btn btn-primary btn-sm" onclick="approveLab(\\'' + lab._id + '\\')">Approve</button>');
+    btns.push('<button class="btn btn-ghost btn-sm" onclick="rejectLab(\\'' + lab._id + '\\')">Reject</button>');
+  }
+  if (lab.status === 'approved') {
+    btns.push('<button class="btn btn-ghost btn-sm" onclick="suspendLab(\\'' + lab._id + '\\')">Suspend</button>');
+  }
+  if (lab.status === 'suspended' || lab.status === 'rejected') {
+    btns.push('<button class="btn btn-primary btn-sm" onclick="approveLab(\\'' + lab._id + '\\')">Approve</button>');
+  }
+  btns.push('<button class="btn btn-danger btn-sm" onclick="deleteLab(\\'' + lab._id + '\\', \\'' + lab.name.replace(/'/g, "\\\\'") + '\\')">Delete</button>');
+  return '<div class="action-btns">' + btns.join('') + '</div>';
 }
 
-
-// ============================================================
-// RENDER LABS
-// ============================================================
+function labRowHtml(lab) {
+  return \`
+    <tr>
+      <td><b>\${lab.name}</b><div style="font-size:11px;color:var(--ink-soft);">\${lab.phone || ''}</div></td>
+      <td class="id-cell">\${lab.code}</td>
+      <td>\${lab.email}</td>
+      <td class="pw-cell" id="pwCell-\${lab._id}">
+        <button class="btn btn-ghost pw-btn" onclick="revealPassword('\${lab._id}')">Show</button>
+      </td>
+      <td><span class="status-pill status-\${lab.status}">\${lab.status}</span></td>
+      <td>\${fmtDateTime(lab.createdAt)}</td>
+      <td>\${actionButtonsHtml(lab)}</td>
+    </tr>
+  \`;
+}
 
 function renderLabs(labs) {
-
-  if (!Array.isArray(labs) || labs.length === 0) {
-
-    tbody.innerHTML = \`
-      <tr>
-        <td
-          colspan="6"
-          style="
-            padding:30px;
-            text-align:center;
-            color:#64748b;
-          "
-        >
-          No laboratories registered yet.
-        </td>
-      </tr>
-    \`;
-
+  if (!labs.length) {
+    labBody.innerHTML = '<tr><td colspan="7"><div class="empty-state">No labs match this filter.</div></td></tr>';
     return;
-
   }
-
-
-  tbody.innerHTML = labs.map(function(lab) {
-
-    // --------------------------------------------------------
-    // IMPORTANT:
-    // Use the record's unique id for approval/rejection/revoke.
-    //
-    // Do NOT use labCode here because pending labs don't
-    // have a lab code yet.
-    //
-    // Support multiple possible id field names, since the
-    // backend may serialize Mongo's "_id" as "_id", "id",
-    // or a custom "labId" depending on the schema/toJSON setup.
-    // --------------------------------------------------------
-
-    const labId =
-      lab._id ||
-      lab.id ||
-      lab.labId ||
-      lab.uuid ||
-      '';
-
-
-    // --------------------------------------------------------
-    // Support both possible field names.
-    // --------------------------------------------------------
-
-    const labCode =
-      lab.labCode ||
-      lab.code ||
-      'Not assigned';
-
-
-    const labName =
-      lab.labName ||
-      lab.name ||
-      '—';
-
-
-    const email =
-      lab.email ||
-      '—';
-
-
-    const adminName =
-      lab.adminName ||
-      lab.ownerName ||
-      '—';
-
-
-    const status =
-      (lab.status || 'pending').toLowerCase();
-
-
-    // --------------------------------------------------------
-    // STATUS
-    // --------------------------------------------------------
-
-    let statusHtml = '';
-
-
-    if (status === 'approved') {
-
-      statusHtml = \`
-        <span
-          style="
-            color:#087443;
-            font-weight:600;
-          "
-        >
-          Approved
-        </span>
-      \`;
-
-    } else if (status === 'rejected') {
-
-      statusHtml = \`
-        <span
-          style="
-            color:#b42318;
-            font-weight:600;
-          "
-        >
-          Rejected
-        </span>
-      \`;
-
-    } else {
-
-      statusHtml = \`
-        <span
-          style="
-            color:#c27a00;
-            font-weight:600;
-          "
-        >
-          Pending
-        </span>
-      \`;
-
-    }
-
-
-    // --------------------------------------------------------
-    // ACTION BUTTON
-    // --------------------------------------------------------
-
-    let actionHtml = '';
-
-
-    if (!labId) {
-
-      // No usable id came back from the backend for this
-      // record at all - don't render a button that can only
-      // ever fail, show a clear message instead.
-
-      actionHtml = \`
-        <span style="color:#b42318;">
-          Missing lab ID (check API response)
-        </span>
-      \`;
-
-    } else if (status === 'pending') {
-
-      actionHtml = \`
-
-        <button
-          type="button"
-          class="btn btn-primary approveBtn"
-          data-id="\${escapeHtml(labId)}"
-        >
-          Approve
-        </button>
-
-        <button
-          type="button"
-          class="btn btn-secondary rejectBtn"
-          data-id="\${escapeHtml(labId)}"
-          style="margin-left:5px;"
-        >
-          Reject
-        </button>
-
-      \`;
-
-    } else if (status === 'approved') {
-
-      actionHtml = \`
-
-        <button
-          type="button"
-          class="btn btn-secondary revokeBtn"
-          data-id="\${escapeHtml(labId)}"
-        >
-          Revoke
-        </button>
-
-      \`;
-
-    } else {
-
-      actionHtml = \`
-        <span style="color:#64748b;">
-          No action
-        </span>
-      \`;
-
-    }
-
-
-    // --------------------------------------------------------
-    // TABLE ROW
-    // --------------------------------------------------------
-
-    return \`
-
-      <tr
-        style="
-          border-bottom:1px solid #e5e7eb;
-        "
-      >
-
-        <td
-          style="
-            padding:12px;
-            font-weight:600;
-            color:#087f7f;
-          "
-        >
-          \${escapeHtml(labCode)}
-        </td>
-
-        <td style="padding:12px;">
-          \${escapeHtml(labName)}
-        </td>
-
-        <td style="padding:12px;">
-          \${escapeHtml(email)}
-        </td>
-
-        <td style="padding:12px;">
-          \${escapeHtml(adminName)}
-        </td>
-
-        <td style="padding:12px;">
-          \${statusHtml}
-        </td>
-
-        <td style="padding:12px;">
-          \${actionHtml}
-        </td>
-
-      </tr>
-
-    \`;
-
-  }).join('');
-
-
-  // ==========================================================
-  // APPROVE BUTTONS
-  // ==========================================================
-
-  tbody
-    .querySelectorAll('.approveBtn')
-    .forEach(function(button) {
-
-      button.addEventListener('click', async function() {
-
-        const id = button.dataset.id;
-
-        if (!id) {
-
-          alert('Lab ID is missing.');
-
-          return;
-
-        }
-
-
-        const confirmed = confirm(
-          'Approve this laboratory?\\\\n\\\\n' +
-          'A unique lab code will be generated automatically.'
-        );
-
-
-        if (!confirmed) {
-          return;
-        }
-
-
-        button.disabled = true;
-        button.textContent = 'Approving...';
-
-
-        await handleAction(id, 'approve');
-
-      });
-
-    });
-
-
-  // ==========================================================
-  // REJECT BUTTONS
-  // ==========================================================
-
-  tbody
-    .querySelectorAll('.rejectBtn')
-    .forEach(function(button) {
-
-      button.addEventListener('click', async function() {
-
-        const id = button.dataset.id;
-
-        if (!id) {
-
-          alert('Lab ID is missing.');
-
-          return;
-
-        }
-
-
-        const confirmed = confirm(
-          'Reject this laboratory registration?'
-        );
-
-
-        if (!confirmed) {
-          return;
-        }
-
-
-        button.disabled = true;
-        button.textContent = 'Rejecting...';
-
-
-        await handleAction(id, 'reject');
-
-      });
-
-    });
-
-
-  // ==========================================================
-  // REVOKE BUTTONS
-  // ==========================================================
-
-  tbody
-    .querySelectorAll('.revokeBtn')
-    .forEach(function(button) {
-
-      button.addEventListener('click', async function() {
-
-        const id = button.dataset.id;
-
-        if (!id) {
-
-          alert('Lab ID is missing.');
-
-          return;
-
-        }
-
-
-        const confirmed = confirm(
-          'Revoke this laboratory access?'
-        );
-
-
-        if (!confirmed) {
-          return;
-        }
-
-
-        button.disabled = true;
-        button.textContent = 'Revoking...';
-
-
-        await handleAction(id, 'revoke');
-
-      });
-
-    });
-
+  labBody.innerHTML = labs.map(labRowHtml).join('');
 }
-
-
-// ============================================================
-// APPROVE / REJECT / REVOKE
-// ============================================================
-
-async function handleAction(id, action) {
-
-  try {
-
-    hideMessage();
-
-
-    await ownerFetch(
-      '/labs/owner/' + id + '/' + action,
-      {
-        method: 'PUT'
-      }
-    );
-
-
-    if (action === 'approve') {
-
-      showMessage(
-        'Laboratory approved successfully. Lab code has been generated.',
-        'success'
-      );
-
-    } else if (action === 'reject') {
-
-      showMessage(
-        'Laboratory registration rejected.',
-        'success'
-      );
-
-    } else if (action === 'revoke') {
-
-      showMessage(
-        'Laboratory access revoked.',
-        'success'
-      );
-
-    }
-
-
-    await loadLabs();
-
-
-  } catch (error) {
-
-    showMessage(
-      error.message || 'Action failed.',
-      'error'
-    );
-
-    await loadLabs();
-
-  }
-
-}
-
-
-// ============================================================
-// LOAD LABORATORIES
-// ============================================================
 
 async function loadLabs() {
-
   try {
-
-    hideMessage();
-
-
-    const labs = await ownerFetch(
-      '/labs/owner/all'
-    );
-
-
-    labsCard.style.display = 'block';
-
-
-    renderLabs(labs);
-
-
-  } catch (error) {
-
-    labsCard.style.display = 'none';
-
-
-    keyError.textContent =
-      error.message ||
-      'Could not load laboratories. Check your owner key.';
-
-
-    keyError.style.display = 'block';
-
+    const q = statusFilter.value ? '?status=' + statusFilter.value : '';
+    labsCache = await ownerApi('/admin/labs' + q);
+    renderLabs(labsCache);
+  } catch (err) {
+    labBody.innerHTML = '<tr><td colspan="7"><div class="empty-state">' + err.message + '</div></td></tr>';
   }
-
 }
 
-
-// ============================================================
-// OPEN OWNER PANEL
-// ============================================================
-
-loadBtn.addEventListener(
-  'click',
-  async function() {
-
-    keyError.style.display = 'none';
-
-
-    const key = keyInput.value.trim();
-
-
-    if (!key) {
-
-      keyError.textContent =
-        'Please enter your owner secret key.';
-
-      keyError.style.display = 'block';
-
-      return;
-
-    }
-
-
-    loadBtn.disabled = true;
-    loadBtn.textContent = 'Checking...';
-
-
-    setOwnerKey(key);
-
-
-    await loadLabs();
-
-
-    loadBtn.disabled = false;
-    loadBtn.textContent = 'Open Owner Panel';
-
+async function revealPassword(id) {
+  const cell = document.getElementById('pwCell-' + id);
+  try {
+    const { password } = await ownerApi('/admin/labs/' + id + '/password');
+    cell.innerHTML = '<span>' + password + '</span> <button class="btn btn-ghost pw-btn" onclick="hidePassword(\\'' + id + '\\')">Hide</button>';
+  } catch (err) {
+    cell.innerHTML = '<span style="color:var(--danger);font-family:inherit;font-size:12px;">' + err.message + '</span>';
   }
-);
-
-
-// ============================================================
-// REFRESH
-// ============================================================
-
-refreshBtn.addEventListener(
-  'click',
-  async function() {
-
-    refreshBtn.disabled = true;
-    refreshBtn.textContent = 'Refreshing...';
-
-
-    await loadLabs();
-
-
-    refreshBtn.disabled = false;
-    refreshBtn.textContent = 'Refresh';
-
-  }
-);
-
-
-// ============================================================
-// LOGOUT OWNER
-// ============================================================
-
-forgetBtn.addEventListener(
-  'click',
-  function() {
-
-    clearOwnerKey();
-
-
-    labsCard.style.display = 'none';
-
-    keyInput.value = '';
-
-    hideMessage();
-
-    keyError.style.display = 'none';
-
-
-    window.scrollTo({
-      top: 0,
-      behavior: 'smooth'
-    });
-
-  }
-);
-
-
-// ============================================================
-// AUTO LOAD
-// ============================================================
-
-if (getOwnerKey()) {
-
-  keyInput.value = getOwnerKey();
-
-  loadLabs();
-
 }
+window.revealPassword = revealPassword;
 
-`;
-
-
-  // ==========================================================
-  // EXTRA STYLE
-  // ==========================================================
-
-  const extraStyle = `
-
-.page-container {
-  padding: 30px;
+function hidePassword(id) {
+  const cell = document.getElementById('pwCell-' + id);
+  cell.innerHTML = '<button class="btn btn-ghost pw-btn" onclick="revealPassword(\\'' + id + '\\')">Show</button>';
 }
+window.hidePassword = hidePassword;
 
-.card {
-  background: #ffffff;
-  border: 1px solid #e2e8e8;
-  border-radius: 14px;
-  padding: 24px;
-  box-shadow: 0 4px 18px rgba(0,0,0,0.04);
+async function approveLab(id) {
+  try {
+    await ownerApi('/admin/labs/' + id + '/approve', { method: 'PUT' });
+    showToast('Lab approved.', 'success');
+    loadLabs(); loadStats();
+  } catch (err) { showToast(err.message, 'error'); }
 }
+window.approveLab = approveLab;
 
-.subtitle {
-  color: #64748b;
-  font-size: 14px;
+async function rejectLab(id) {
+  const reason = window.prompt('Reason for rejecting this lab (optional):', '') || '';
+  try {
+    await ownerApi('/admin/labs/' + id + '/reject', { method: 'PUT', body: JSON.stringify({ reason }) });
+    showToast('Lab rejected.', 'success');
+    loadLabs(); loadStats();
+  } catch (err) { showToast(err.message, 'error'); }
 }
+window.rejectLab = rejectLab;
 
-.field {
-  margin-top: 16px;
+async function suspendLab(id) {
+  if (!window.confirm('Suspend this lab? Its users will be logged out and unable to sign in.')) return;
+  try {
+    await ownerApi('/admin/labs/' + id + '/suspend', { method: 'PUT' });
+    showToast('Lab suspended.', 'success');
+    loadLabs(); loadStats();
+  } catch (err) { showToast(err.message, 'error'); }
 }
+window.suspendLab = suspendLab;
 
-.field label {
-  display: block;
-  margin-bottom: 7px;
-  font-weight: 600;
+async function deleteLab(id, name) {
+  if (!window.confirm('Permanently delete "' + name + '" and ALL of its patients/reports? This cannot be undone.')) return;
+  try {
+    const result = await ownerApi('/admin/labs/' + id, { method: 'DELETE' });
+    showToast(result.message, 'success');
+    loadLabs(); loadStats();
+  } catch (err) { showToast(err.message, 'error'); }
 }
+window.deleteLab = deleteLab;
 
-.field input {
-  width: 100%;
-  box-sizing: border-box;
+statusFilter.addEventListener('change', loadLabs);
+
+loadStats();
+loadLabs();`;
+
+  return renderPage({ title: 'Owner Console', body, pageScript, extraStyle });
 }
-
-.form-error {
-  background: #fde8e8;
-  color: #b42318;
-  padding: 12px 14px;
-  border-radius: 8px;
-  margin: 14px 0;
-  font-size: 14px;
-}
-
-.btn {
-  cursor: pointer;
-}
-
-.btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-`;
-
-
-  return renderPage({
-    title: 'Owner Panel',
-    body,
-    pageScript,
-    extraStyle
-  });
-}
-
 
 module.exports = ownerPage;
