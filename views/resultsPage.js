@@ -364,19 +364,48 @@ confirmPrintBtn.addEventListener('click', () => {
 });
 
 function printHeaderFieldHtml(field) {
-  return \`<div><b>\${field.label}:</b> \${field.value}</div>\`;
+  return \`
+    <div style="display:flex; padding:3px 0; font-size:12.5px;">
+      <div style="width:150px; color:#444;">\${field.label}</div>
+      <div style="width:14px;">:</div>
+      <div style="font-weight:600;">\${field.value}</div>
+    </div>
+  \`;
 }
 
 function renderPrintArea(fields) {
   const report = activeReport;
   const testTables = report.tests.map(printTestTableHtml).join('');
 
+  const mid = Math.ceil(fields.length / 2);
+  const leftFields = fields.slice(0, mid);
+  const rightFields = fields.slice(mid);
+
   document.getElementById('printArea').innerHTML = \`
-    <div style="font-family: Arial, sans-serif; padding: 30px;">
-      <div style="margin-bottom:16px;">
-        \${fields.map(printHeaderFieldHtml).join('')}
+    <div style="font-family: Arial, sans-serif; padding: 30px; color:#1a1a1a;">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:14px;">
+        <div>
+          <div style="font-size:19px; font-weight:800; letter-spacing:.03em;">RKH LIMS</div>
+          <div style="font-size:11px; color:#666;">Hospital &amp; AI Lab Suite</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:15px; font-weight:700; text-transform:uppercase; letter-spacing:.04em;">Test Report</div>
+          <div style="font-size:11px; color:#666;">\${report.reportId}</div>
+        </div>
       </div>
+
+      <div style="border-top:2px solid #0c7c7c; border-bottom:1px solid #0c7c7c; padding:10px 0; margin-bottom:14px;">
+        <div style="display:grid; grid-template-columns:1fr 1fr; column-gap:24px;">
+          <div>\${leftFields.map(printHeaderFieldHtml).join('')}</div>
+          <div>\${rightFields.map(printHeaderFieldHtml).join('')}</div>
+        </div>
+      </div>
+
       \${testTables}
+
+      <div style="margin-top:36px; padding-top:10px; border-top:1px solid #ccc; text-align:center; font-size:11px; color:#8a8a8a;">
+        Software by RKH LIMS Hospital &amp; AI Lab Suite
+      </div>
     </div>
   \`;
 }
