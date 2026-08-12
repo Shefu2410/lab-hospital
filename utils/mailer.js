@@ -1,8 +1,6 @@
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 const fs = require('fs');
 const path = require('path');
-
-
 
 const LOG_FILE = path.join(__dirname, '..', 'mail-log.txt');
 
@@ -16,71 +14,66 @@ function logToFile(line) {
   }
 }
 
-let transporter = null;
+let resend = null;
 
-function getTransporter() {
-  if (transporter) return transporter;
-  if (!process.env.EMAIL_USER || !process.env.EMAIL_APP_PASSWORD) return null;
-
-  // Explicit host/port instead of `service: 'gmail'` - more reliable, and
-  // avoids some quirks newer nodemailer versions have with the shorthand.
-  transporter = nodemailer.createTransport({
-    host: 'smtp.gmail.com',
-    port: 587,
-    secure: false, // true for port 465, false for 587
-    family: 4,// force IPv4 - Render's network can't route Gmail's IPv6 address
-    auth: {
-      user: process.env.EMAIL_USER.trim(),
-      pass: process.env.EMAIL_APP_PASSWORD.trim().replace(/\s+/g, ''), // app passwords are sometimes copied with spaces
-    },
-  });
-  return transporter;
+function getClient() {
+  if (resend) return resend;
+  if (!process.env.RESEND_API_KEY) return null;
+  resend = new Resend(process.env.RESEND_API_KEY.trim());
+  return resend;
 }
 
 (function logConfigStatusOnBoot() {
-  if (!process.env.EMAIL_USER || !process.env.EMAIL_APP_PASSWORD) {
-    const msg = '[mailer] EMAIL_USER / EMAIL_APP_PASSWORD not set - email notifications are DISABLED.';
+  if (!process.env.RESEND_API_KEY) {
+    const msg = '[mailer] RESEND_API_KEY not set - email notifications are DISABLED.';
     console.log(msg);
     logToFile(msg);
     return;
   }
-  if (!process.env.OWNER_EMAIL) {
-    const msg = '[mailer] EMAIL_USER/EMAIL_APP_PASSWORD are set, but OWNER_EMAIL is missing - "new lab" emails will be skipped.';
-    console.log(msg);
-    logToFile(msg);
-  } else {
-    const msg = `[mailer] Configured. Sending as ${process.env.EMAIL_USER}, owner notifications go to ${process.env.OWNER_EMAIL}.`;
+  if (!process.env.EMAIL_FROM) {
+    const msg = '[mailer] RESEND_API_KEY is set, but EMAIL_FROM is missing - sends will fail.';
     console.log(msg);
     logToFile(msg);
   }
-
-  const t = getTransporter();
-  if (t) {
-    t.verify((err) => {
-      if (err) {
-        const msg = '[mailer] SMTP verification FAILED: ' + err.message;
-        console.error(msg);
-        logToFile(msg);
-      } else {
-        const msg = '[mailer] SMTP connection verified OK.';
-        console.log(msg);
-        logToFile(msg);
-      }
-    });
+  if (!process.env.OWNER_EMAIL) {
+    const msg = '[mailer] RESEND_API_KEY is set, but OWNER_EMAIL is missing - "new lab" emails will be skipped.';
+    console.log(msg);
+    logToFile(msg);
+  } else {
+    const msg = `[mailer] Configured. Sending as ${process.env.EMAIL_FROM || '(EMAIL_FROM not set)'}, owner notifications go to ${process.env.OWNER_EMAIL}.`;
+    console.log(msg);
+    logToFile(msg);
   }
 })();
 
 async function sendMail({ to, subject, text }) {
-  const t = getTransporter();
-  if (!t) {
-    const msg = `[mailer] Skipped (EMAIL_USER/EMAIL_APP_PASSWORD not set in .env). Would have sent to ${to}: ${subject}`;
+  const client = getClient();
+  if (!client) {
+    const msg = `[mailer] Skipped (RESEND_API_KEY not set in .env). Would have sent to ${to}: ${subject}`;
+    console.log(msg);
+    logToFile(msg);
+    return;
+  }
+  if (!process.env.EMAIL_FROM) {
+    const msg = `[mailer] Skipped (EMAIL_FROM not set in .env). Would have sent to ${to}: ${subject}`;
     console.log(msg);
     logToFile(msg);
     return;
   }
   try {
-    const info = await t.sendMail({ from: `"RKH LIMS" <${process.env.EMAIL_USER}>`, to, subject, text });
-    const msg = `[mailer] SENT "${subject}" to ${to} | messageId: ${info.messageId} | response: ${info.response}`;
+    const { data, error } = await client.emails.send({
+      from: `RKH LIMS <${process.env.EMAIL_FROM}>`,
+      to,
+      subject,
+      text,
+    });
+    if (error) {
+      const msg = `[mailer] FAILED to send "${subject}" to ${to}: ${error.message}`;
+      console.error(msg);
+      logToFile(msg);
+      return;
+    }
+    const msg = `[mailer] SENT "${subject}" to ${to} | id: ${data.id}`;
     console.log(msg);
     logToFile(msg);
   } catch (err) {
