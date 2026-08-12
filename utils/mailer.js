@@ -42,8 +42,8 @@ function getTransporter() {
   // avoids some quirks newer nodemailer versions have with the shorthand.
   transporter = nodemailer.createTransport({
     host: 'smtp.gmail.com',
-    port: 465,
-    secure: true, // true for port 465, false for 587
+    port: 587,
+    secure: false, // true for port 465, false for 587
     auth: {
       user: process.env.EMAIL_USER.trim(),
       pass: process.env.EMAIL_APP_PASSWORD.trim().replace(/\s+/g, ''), // app passwords are sometimes copied with spaces
