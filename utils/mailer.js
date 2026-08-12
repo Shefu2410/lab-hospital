@@ -2,23 +2,7 @@ const nodemailer = require('nodemailer');
 const fs = require('fs');
 const path = require('path');
 
-// Sends the two emails the approval workflow needs:
-//  - to the OWNER when a new lab registers and needs approval
-//  - to the LAB when the owner approves / rejects / suspends them
-//
-// Configure in .env:
-//   EMAIL_USER            - the Gmail address to send from
-//   EMAIL_APP_PASSWORD    - a Gmail "App Password" (NOT your normal Gmail password -
-//                            create one at https://myaccount.google.com/apppasswords,
-//                            requires 2-Step Verification to be on)
-//   OWNER_EMAIL            - where "new lab pending approval" emails go
-//
-// If these are not set, mail sending is silently skipped (logged to console)
-// so the rest of the app keeps working without email configured.
-//
-// Every send attempt (success or failure) is also appended to mail-log.txt
-// in the project root, so you can check what happened without needing to
-// watch the terminal at the exact moment a registration happens.
+
 
 const LOG_FILE = path.join(__dirname, '..', 'mail-log.txt');
 
@@ -44,6 +28,7 @@ function getTransporter() {
     host: 'smtp.gmail.com',
     port: 587,
     secure: false, // true for port 465, false for 587
+    family: 4,// force IPv4 - Render's network can't route Gmail's IPv6 address
     auth: {
       user: process.env.EMAIL_USER.trim(),
       pass: process.env.EMAIL_APP_PASSWORD.trim().replace(/\s+/g, ''), // app passwords are sometimes copied with spaces

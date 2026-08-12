@@ -1,0 +1,2 @@
+[2026-08-12T06:38:40.899Z] [mailer] Configured. Sending as shefali9393@gmail.com, owner notifications go to shefali9393@gmail.com.
+[2026-08-12T06:38:42.905Z] [mailer] SMTP connection verified OK.
